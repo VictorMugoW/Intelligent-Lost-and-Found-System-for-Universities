@@ -1,0 +1,8 @@
+uploads/* 
+!uploads/.gitkeep 
+qrcodes/* 
+!qrcodes/.gitkeep 
+.DS_Store 
+Thumbs.db 
+.vscode/ 
+.idea/ 
