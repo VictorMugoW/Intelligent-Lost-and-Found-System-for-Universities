@@ -83,9 +83,9 @@ $stmt->close();
     </div>
 
     <div class="mt-4">
-        <a href="#" class="btn btn-primary">Report Lost Item</a>
-        <a href="#" class="btn btn-success">Report Found Item</a>
-        <a href="#" class="btn btn-info">Browse Items</a>
+        <a href="report_item.php" class="btn btn-primary">Report Lost Item</a>
+        <a href="report_item.php" class="btn btn-success">Report Found Item</a>
+        <a href="browse_items.php" class="btn btn-info">Browse Items</a>
     </div>
 </div>
 
