@@ -61,11 +61,11 @@ require_once '../includes/navbar.php';
         <h4 class="fw-bold mb-3">Quick Actions</h4>
         <div class="row g-4">
             <div class="col-md-4">
-                <a href="report_item.php" class="text-decoration-none">
+                <a href="report_item.php?type=lost" class="text-decoration-none">
                     <div class="feature-card">
-                        <div class="feature-icon"><i class="bi bi-plus-circle"></i></div>
-                        <h5>Report an Item</h5>
-                        <p>Report a lost or found item with details and image.</p>
+                        <div class="feature-icon" style="background: linear-gradient(135deg, #EF4444, #DC2626);"><i class="bi bi-exclamation-circle"></i></div>
+                        <h5>Report Lost Item</h5>
+                        <p>Report an item that you have lost.</p>
                     </div>
                 </a>
             </div>
@@ -73,13 +73,13 @@ require_once '../includes/navbar.php';
                 <a href="browse_items.php" class="text-decoration-none">
                     <div class="feature-card">
                         <div class="feature-icon"><i class="bi bi-search"></i></div>
-                        <h5>Browse Items</h5>
-                        <p>Search through all reported lost and found items.</p>
+                        <h5>Browse &amp; Claim</h5>
+                        <p>Found something? Mark it as found. Lost something? Claim it.</p>
                     </div>
                 </a>
             </div>
             <div class="col-md-4">
-                <a href="browse_items.php" class="text-decoration-none">
+                <a href="my_claims.php" class="text-decoration-none">
                     <div class="feature-card">
                         <div class="feature-icon"><i class="bi bi-tags"></i></div>
                         <h5>My Claims</h5>

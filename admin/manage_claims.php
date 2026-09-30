@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['claim_id'], $_POST['a
 
             QRcode::png($qr_token, $qr_file, QR_ECLEVEL_L, 10);
 
-            $stmt = $conn->prepare("UPDATE claims SET status = 'approved', qr_token = ?, qr_generated_at = NOW() WHERE claim_id = ?");
+            $stmt = $conn->prepare("UPDATE claims SET status = 'approved', qr_token = ?, qr_generated_at = NOW(), admin_reason = NULL WHERE claim_id = ?");
             $stmt->bind_param("si", $qr_token, $claim_id);
             $stmt->execute();
             $stmt->close();
@@ -40,14 +40,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['claim_id'], $_POST['a
             $message_type = "success";
         }
     } elseif ($action === 'reject') {
-        $conn->query("UPDATE claims SET status = 'rejected' WHERE claim_id = $claim_id");
-        $message = "Claim rejected.";
-        $message_type = "warning";
+        $reason = trim($_POST['admin_reason'] ?? '');
+        if (empty($reason)) {
+            $message = "Please provide a reason for rejecting this claim.";
+            $message_type = "danger";
+        } else {
+            $stmt = $conn->prepare("UPDATE claims SET status = 'rejected', admin_reason = ? WHERE claim_id = ?");
+            $stmt->bind_param("si", $reason, $claim_id);
+            $stmt->execute();
+            $stmt->close();
+            $message = "Claim rejected with reason.";
+            $message_type = "warning";
+        }
     }
 }
 
 $claims = $conn->query("
-    SELECT c.claim_id, c.claim_reason, c.status, c.created_at,
+    SELECT c.claim_id, c.claim_reason, c.status, c.created_at, c.supporting_lost_item_id,
            i.item_id, i.item_name, i.category, i.colour, i.location, i.description, i.image_path,
            u.full_name AS claimant, u.email AS claimant_email
     FROM claims c
@@ -105,14 +114,46 @@ require_once '../includes/navbar.php';
                             <hr>
                             <p class="small mb-1"><strong>Claimant:</strong> <?= htmlspecialchars($c['claimant']) ?></p>
                             <p class="small mb-1"><strong>Email:</strong> <?= htmlspecialchars($c['claimant_email']) ?></p>
-                            <p class="small mb-3"><strong>Reason:</strong> <?= htmlspecialchars($c['claim_reason']) ?></p>
-                            <form method="POST" class="d-flex gap-2">
+                            <p class="small mb-3"><strong>Claim Reason:</strong> <?= htmlspecialchars($c['claim_reason']) ?></p>
+
+                            <?php
+                            // If there's supporting evidence, fetch the lost report
+                            if (!empty($c['supporting_lost_item_id'])):
+                                $lost_id = intval($c['supporting_lost_item_id']);
+                                $lost = $conn->query("SELECT item_name, description, colour, location, date_lost_found, created_at FROM items WHERE item_id = $lost_id")->fetch_assoc();
+                                if ($lost):
+                            ?>
+                                <div class="card mb-3" style="border: 2px solid #10B981; box-shadow: none;">
+                                    <div class="card-body p-3">
+                                        <h6 class="fw-bold mb-2" style="color: #059669;">
+                                            <i class="bi bi-shield-check"></i> Supporting Evidence
+                                        </h6>
+                                        <p class="small mb-1"><strong>Claimant's own Lost Report:</strong> <?= htmlspecialchars($lost['item_name']) ?></p>
+                                        <p class="small mb-1"><strong>Reported on:</strong> <?= date('M d, Y', strtotime($lost['created_at'])) ?></p>
+                                        <p class="small mb-1"><strong>Colour:</strong> <?= htmlspecialchars($lost['colour'] ?: 'N/A') ?></p>
+                                        <p class="small mb-1"><strong>Location:</strong> <?= htmlspecialchars($lost['location'] ?: 'N/A') ?></p>
+                                        <p class="small mb-0"><strong>Description:</strong> <?= htmlspecialchars($lost['description']) ?></p>
+                                    </div>
+                                </div>
+                            <?php endif; endif; ?>
+
+                            <!-- Approve Form -->
+                            <form method="POST" class="mb-2">
                                 <input type="hidden" name="claim_id" value="<?= $c['claim_id'] ?>">
-                                <button type="submit" name="action" value="approve" class="btn btn-success btn-sm flex-fill">
-                                    <i class="bi bi-check-circle"></i> Approve
+                                <button type="submit" name="action" value="approve" class="btn btn-success btn-sm w-100">
+                                    <i class="bi bi-check-circle"></i> Approve Claim
                                 </button>
-                                <button type="submit" name="action" value="reject" class="btn btn-danger btn-sm flex-fill">
-                                    <i class="bi bi-x-circle"></i> Reject
+                            </form>
+
+                            <!-- Reject Form (with reason) -->
+                            <form method="POST">
+                                <input type="hidden" name="claim_id" value="<?= $c['claim_id'] ?>">
+                                <div class="mb-2">
+                                    <label class="form-label small fw-bold">Reason for Rejection (required if rejecting):</label>
+                                    <textarea name="admin_reason" class="form-control form-control-sm" rows="2" placeholder="e.g. The description does not match the item's details"></textarea>
+                                </div>
+                                <button type="submit" name="action" value="reject" class="btn btn-danger btn-sm w-100">
+                                    <i class="bi bi-x-circle"></i> Reject Claim
                                 </button>
                             </form>
                         </div>

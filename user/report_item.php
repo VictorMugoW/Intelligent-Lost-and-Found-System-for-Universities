@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../config/database.php';
+require_once '../includes/matching_engine.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: ../auth/login.php');
@@ -10,6 +11,12 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $message = '';
 $message_type = '';
+$matches = [];
+
+$pre_type = $_GET['type'] ?? 'lost';
+if (!in_array($pre_type, ['lost', 'found'])) {
+    $pre_type = 'lost';
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $item_name = trim($_POST['item_name']);
@@ -48,13 +55,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param("isssssssss", $user_id, $item_name, $category, $description, $colour, $location, $date_lost_found, $image_path, $type, $status);
 
             if ($stmt->execute()) {
+                $new_item_id = $stmt->insert_id;
+                $stmt->close();
                 $message = 'Item reported successfully!';
                 $message_type = 'success';
+                $matches = runMatchingEngine($conn, $new_item_id);
             } else {
                 $message = 'Failed to report item.';
                 $message_type = 'danger';
+                $stmt->close();
             }
-            $stmt->close();
         }
     }
 }
@@ -83,8 +93,8 @@ require_once '../includes/navbar.php';
                         <div class="mb-3">
                             <label class="form-label">Item Type *</label>
                             <select name="type" class="form-select" required>
-                                <option value="lost">Lost Item</option>
-                                <option value="found">Found Item</option>
+                                <option value="lost" <?= $pre_type === 'lost' ? 'selected' : '' ?>>Lost Item</option>
+                                <option value="found" <?= $pre_type === 'found' ? 'selected' : '' ?>>Found Item</option>
                             </select>
                         </div>
                         <div class="mb-3">
@@ -128,6 +138,44 @@ require_once '../includes/navbar.php';
                     </form>
                 </div>
             </div>
+
+            <?php if (!empty($matches)): ?>
+                <div class="mt-5">
+                    <h4 class="fw-bold mb-3">
+                        <i class="bi bi-stars text-primary"></i> Intelligent Match Suggestions
+                    </h4>
+                    <p class="text-muted">We found <?= count($matches) ?> potential match(es) for your item:</p>
+
+                    <div class="row g-4">
+                        <?php foreach ($matches as $match): ?>
+                            <div class="col-md-6">
+                                <div class="card h-100" style="border: 2px solid #10B981;">
+                                    <div class="card-header" style="background: linear-gradient(135deg, #10B981, #059669); color: white;">
+                                        <strong><i class="bi bi-check-circle"></i> Match Score: <?= $match['score'] ?>%</strong>
+                                    </div>
+                                    <div class="card-body">
+                                        <?php if (!empty($match['item']['image_path'])): ?>
+                                            <img src="../<?= htmlspecialchars($match['item']['image_path']) ?>" class="img-fluid rounded mb-3" style="max-height:180px;">
+                                        <?php endif; ?>
+                                        <h5 class="fw-bold"><?= htmlspecialchars($match['item']['item_name']) ?></h5>
+                                        <p class="small mb-1"><strong>Category:</strong> <?= htmlspecialchars($match['item']['category']) ?></p>
+                                        <p class="small mb-1"><strong>Colour:</strong> <?= htmlspecialchars($match['item']['colour'] ?: 'N/A') ?></p>
+                                        <p class="small mb-1"><strong>Location:</strong> <?= htmlspecialchars($match['item']['location'] ?: 'N/A') ?></p>
+                                        <p class="small mb-2"><strong>Description:</strong> <?= htmlspecialchars($match['item']['description']) ?></p>
+                                        <a href="submit_claim.php?item_id=<?= $match['item']['item_id'] ?>" class="btn btn-primary btn-sm w-100">
+                                            <i class="bi bi-hand-index"></i> Claim This Match
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php elseif ($message_type === 'success' && empty($matches)): ?>
+                <div class="mt-4 alert alert-info">
+                    <i class="bi bi-info-circle"></i> No matches found yet. The system will continue to compare your report against future submissions.
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
