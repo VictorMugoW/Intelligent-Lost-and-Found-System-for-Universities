@@ -1,5 +1,11 @@
 <?php
+session_start();
 require_once '../config/database.php';
+
+if (isset($_SESSION['user_id'])) {
+    header('Location: ../user/dashboard.php');
+    exit;
+}
 
 $message = '';
 $message_type = '';
@@ -13,12 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $student_id = trim($_POST['student_id'] ?? '');
     $staff_id = trim($_POST['staff_id'] ?? '');
 
-    // Basic validation
     if (empty($full_name) || empty($email) || empty($password) || empty($role)) {
         $message = 'Please fill in all required fields.';
         $message_type = 'danger';
     } else {
-        // Check if email already exists
         $check = $conn->prepare("SELECT user_id FROM users WHERE email = ?");
         $check->bind_param("s", $email);
         $check->execute();
@@ -50,44 +54,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $check->close();
     }
 }
+
+$page_title = 'Register';
+require_once '../includes/header.php';
+require_once '../includes/navbar.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - Intelligent Lost and Found System</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-<div class="container mt-5">
+
+<div class="container" style="margin-top: 4rem;">
     <div class="row justify-content-center">
         <div class="col-md-6">
-            <div class="card shadow">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">Create an Account</h4>
-                </div>
-                <div class="card-body">
+            <div class="card">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <div class="feature-icon mx-auto mb-3"><i class="bi bi-person-plus"></i></div>
+                        <h3 class="fw-bold">Create Account</h3>
+                        <p class="text-muted">Join the Lost and Found community</p>
+                    </div>
+
                     <?php if ($message): ?>
                         <div class="alert alert-<?= $message_type ?>"><?= htmlspecialchars($message) ?></div>
                     <?php endif; ?>
 
-                    <form method="POST" action="">
+                    <form method="POST">
                         <div class="mb-3">
                             <label class="form-label">Full Name *</label>
                             <input type="text" name="full_name" class="form-control" required>
                         </div>
-
                         <div class="mb-3">
                             <label class="form-label">Email *</label>
                             <input type="email" name="email" class="form-control" required>
                         </div>
-
                         <div class="mb-3">
                             <label class="form-label">Phone</label>
                             <input type="text" name="phone" class="form-control">
                         </div>
-
                         <div class="mb-3">
                             <label class="form-label">Role *</label>
                             <select name="role" id="role" class="form-select" required onchange="toggleIdField()">
@@ -95,27 +95,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="staff">Staff</option>
                             </select>
                         </div>
-
                         <div class="mb-3" id="studentIdField">
                             <label class="form-label">Student Registration Number</label>
                             <input type="text" name="student_id" class="form-control">
                         </div>
-
                         <div class="mb-3 d-none" id="staffIdField">
                             <label class="form-label">Staff Number</label>
                             <input type="text" name="staff_id" class="form-control">
                         </div>
-
-                        <div class="mb-3">
+                        <div class="mb-4">
                             <label class="form-label">Password *</label>
                             <input type="password" name="password" class="form-control" required>
                         </div>
-
                         <button type="submit" class="btn btn-primary w-100">Register</button>
                     </form>
 
-                    <div class="mt-3 text-center">
-                        Already have an account? <a href="login.php">Login here</a>
+                    <div class="text-center mt-4">
+                        <span class="text-muted">Already have an account?</span>
+                        <a href="login.php" class="fw-bold">Login</a>
                     </div>
                 </div>
             </div>
@@ -131,5 +128,8 @@ function toggleIdField() {
 }
 toggleIdField();
 </script>
+
+<?php require_once '../includes/footer.php'; ?>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -8,78 +8,84 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 }
 
 $full_name = $_SESSION['full_name'];
-
-// Stats
 $total_users = $conn->query("SELECT COUNT(*) as c FROM users")->fetch_assoc()['c'];
 $total_items = $conn->query("SELECT COUNT(*) as c FROM items")->fetch_assoc()['c'];
 $pending_claims = $conn->query("SELECT COUNT(*) as c FROM claims WHERE status = 'pending'")->fetch_assoc()['c'];
 $returned_items = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'returned'")->fetch_assoc()['c'];
+
+$page_title = 'Admin Dashboard';
+require_once '../includes/header.php';
+require_once '../includes/navbar.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
 
-<nav class="navbar navbar-dark bg-dark">
-    <div class="container">
-        <span class="navbar-brand mb-0 h1">Admin Panel — Intelligent Lost and Found</span>
-        <div>
-            <span class="text-white me-3">Welcome, <?= htmlspecialchars($full_name) ?></span>
-            <a href="../auth/logout.php" class="btn btn-outline-light btn-sm">Logout</a>
-        </div>
+<div class="container mt-5">
+    <div class="mb-4">
+        <h2 class="section-title">Admin Dashboard</h2>
+        <p class="section-subtitle">System overview and management</p>
     </div>
-</nav>
 
-<div class="container mt-4">
-    <h3>Admin Dashboard</h3>
-    <p class="text-muted">Overview of the entire system</p>
-
-    <div class="row mt-4">
+    <div class="row g-4">
         <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <h5>Total Users</h5>
-                    <h2><?= $total_users ?></h2>
-                </div>
+            <div class="stat-card stat-dark">
+                <h6><i class="bi bi-people"></i> Total Users</h6>
+                <h2><?= $total_users ?></h2>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <h5>Total Items</h5>
-                    <h2><?= $total_items ?></h2>
-                </div>
+            <div class="stat-card stat-blue">
+                <h6><i class="bi bi-box-seam"></i> Total Items</h6>
+                <h2><?= $total_items ?></h2>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-warning text-dark">
-                <div class="card-body">
-                    <h5>Pending Claims</h5>
-                    <h2><?= $pending_claims ?></h2>
-                </div>
+            <div class="stat-card stat-accent">
+                <h6><i class="bi bi-clock-history"></i> Pending Claims</h6>
+                <h2><?= $pending_claims ?></h2>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <h5>Returned Items</h5>
-                    <h2><?= $returned_items ?></h2>
-                </div>
+            <div class="stat-card stat-success">
+                <h6><i class="bi bi-check-circle"></i> Returned</h6>
+                <h2><?= $returned_items ?></h2>
             </div>
         </div>
     </div>
 
-    <div class="mt-4">
-        <a href="manage_claims.php" class="btn btn-warning">Manage Claims</a>
-        <a href="analytics.php" class="btn btn-info">Analytics</a>
-        <a href="verify_qr.php" class="btn btn-success">Verify QR</a>
+    <div class="mt-5">
+        <h4 class="fw-bold mb-3">Management</h4>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <a href="manage_claims.php" class="text-decoration-none">
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="bi bi-clipboard-check"></i></div>
+                        <h5>Manage Claims</h5>
+                        <p>Review, approve, or reject pending claims.</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="verify_qr.php" class="text-decoration-none">
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="bi bi-qr-code-scan"></i></div>
+                        <h5>Verify QR Code</h5>
+                        <p>Verify a claimant's QR code at pickup.</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="analytics.php" class="text-decoration-none">
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="bi bi-bar-chart-line"></i></div>
+                        <h5>Analytics</h5>
+                        <p>View recovery rates, hotspots, and trends.</p>
+                    </div>
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 
+<?php require_once '../includes/footer.php'; ?>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
