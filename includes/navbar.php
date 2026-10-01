@@ -17,6 +17,7 @@ $is_logged_in = isset($_SESSION['user_id']);
                 <?php if ($is_logged_in): ?>
                     <?php if ($current_role === 'admin'): ?>
                         <li class="nav-item"><a class="nav-link" href="/intelligent-lost-and-found/admin/dashboard.php">Dashboard</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/intelligent-lost-and-found/admin/verify_found_items.php">Verifications</a></li>
                         <li class="nav-item"><a class="nav-link" href="/intelligent-lost-and-found/admin/manage_claims.php">Claims</a></li>
                         <li class="nav-item"><a class="nav-link" href="/intelligent-lost-and-found/admin/verify_qr.php">Verify QR</a></li>
                         <li class="nav-item"><a class="nav-link" href="/intelligent-lost-and-found/admin/analytics.php">Analytics</a></li>

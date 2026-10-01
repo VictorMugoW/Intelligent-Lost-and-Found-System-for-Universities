@@ -12,6 +12,7 @@ $total_users = $conn->query("SELECT COUNT(*) as c FROM users")->fetch_assoc()['c
 $total_items = $conn->query("SELECT COUNT(*) as c FROM items")->fetch_assoc()['c'];
 $pending_claims = $conn->query("SELECT COUNT(*) as c FROM claims WHERE status = 'pending'")->fetch_assoc()['c'];
 $returned_items = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'returned'")->fetch_assoc()['c'];
+$pending_verifications = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'pending_verification'")->fetch_assoc()['c'];
 
 $page_title = 'Admin Dashboard';
 require_once '../includes/header.php';
@@ -23,6 +24,16 @@ require_once '../includes/navbar.php';
         <h2 class="section-title">Admin Dashboard</h2>
         <p class="section-subtitle">System overview and management</p>
     </div>
+
+    <?php if ($pending_verifications > 0): ?>
+        <div class="alert alert-warning d-flex justify-content-between align-items-center">
+            <div>
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <strong><?= $pending_verifications ?> item(s)</strong> awaiting verification.
+            </div>
+            <a href="verify_found_items.php" class="btn btn-warning btn-sm">Review Now</a>
+        </div>
+    <?php endif; ?>
 
     <div class="row g-4">
         <div class="col-md-3">
@@ -54,7 +65,21 @@ require_once '../includes/navbar.php';
     <div class="mt-5">
         <h4 class="fw-bold mb-3">Management</h4>
         <div class="row g-4">
-            <div class="col-md-4">
+            <div class="col-md-3">
+                <a href="verify_found_items.php" class="text-decoration-none">
+                    <div class="feature-card">
+                        <div class="feature-icon" style="background: linear-gradient(135deg, #F59E0B, #D97706); position: relative;">
+                            <i class="bi bi-shield-check"></i>
+                            <?php if ($pending_verifications > 0): ?>
+                                <span class="badge bg-danger" style="position: absolute; top: -8px; right: -8px;"><?= $pending_verifications ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <h5>Verify Found Items</h5>
+                        <p>Confirm items reported as found are physically at the office.</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-3">
                 <a href="manage_claims.php" class="text-decoration-none">
                     <div class="feature-card">
                         <div class="feature-icon"><i class="bi bi-clipboard-check"></i></div>
@@ -63,7 +88,7 @@ require_once '../includes/navbar.php';
                     </div>
                 </a>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <a href="verify_qr.php" class="text-decoration-none">
                     <div class="feature-card">
                         <div class="feature-icon"><i class="bi bi-qr-code-scan"></i></div>
@@ -72,7 +97,7 @@ require_once '../includes/navbar.php';
                     </div>
                 </a>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <a href="analytics.php" class="text-decoration-none">
                     <div class="feature-card">
                         <div class="feature-icon"><i class="bi bi-bar-chart-line"></i></div>

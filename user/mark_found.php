@@ -42,10 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $message = 'Please provide both location and date.';
         $message_type = 'danger';
     } else {
-        $update = $conn->prepare("UPDATE items SET status = 'found', finder_id = ?, found_location = ?, found_date = ? WHERE item_id = ?");
+        $update = $conn->prepare("UPDATE items SET status = 'pending_verification', finder_id = ?, found_location = ?, found_date = ? WHERE item_id = ?");
         $update->bind_param("issi", $user_id, $found_location, $found_date, $item_id);
         if ($update->execute()) {
-            $message = 'Thank you! You have marked this item as found. The owner has been notified.';
+            $message = 'Thank you! Your report has been submitted for admin verification.';
             $message_type = 'success';
         } else {
             $message = 'Failed to update. Please try again.';
@@ -67,14 +67,18 @@ require_once '../includes/navbar.php';
                 <div class="card-body p-5">
                     <div class="text-center mb-4">
                         <div class="feature-icon mx-auto mb-3" style="background: linear-gradient(135deg, #10B981, #059669);"><i class="bi bi-hand-thumbs-up"></i></div>
-                        <h3 class="fw-bold">Mark Item as Found</h3>
+                        <h3 class="fw-bold">I Found This Item</h3>
                         <p class="text-muted">Thank you for helping reunite this item with its owner</p>
                     </div>
 
                     <?php if ($message): ?>
                         <div class="alert alert-<?= $message_type ?>"><?= htmlspecialchars($message) ?></div>
                         <?php if ($message_type === 'success'): ?>
-                            <a href="browse_items.php?status=found" class="btn btn-primary">View Found Items</a>
+                            <div class="alert alert-info small">
+                                <i class="bi bi-info-circle"></i>
+                                <strong>Next step:</strong> Please deposit the item at the Lost and Found Office. An administrator will verify it and make it available for claiming.
+                            </div>
+                            <a href="browse_items.php" class="btn btn-primary">Back to Browse</a>
                         <?php endif; ?>
                     <?php else: ?>
 
@@ -89,6 +93,12 @@ require_once '../includes/navbar.php';
                             </div>
                         </div>
 
+                        <div class="alert alert-warning small">
+                            <strong><i class="bi bi-exclamation-triangle"></i> Important:</strong>
+                            After submitting this form, please take the item to the <strong>Lost and Found Office</strong>.
+                            An administrator will verify it before it becomes visible for claiming.
+                        </div>
+
                         <form method="POST">
                             <div class="mb-3">
                                 <label class="form-label">Where did you find it? *</label>
@@ -99,7 +109,7 @@ require_once '../includes/navbar.php';
                                 <input type="date" name="found_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
                             </div>
                             <button type="submit" class="btn btn-success">
-                                <i class="bi bi-check-circle"></i> Confirm — I Found This
+                                <i class="bi bi-check-circle"></i> Submit for Verification
                             </button>
                             <a href="browse_items.php" class="btn btn-outline-secondary">Cancel</a>
                         </form>

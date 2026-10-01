@@ -11,21 +11,26 @@ $user_id = $_SESSION['user_id'];
 $search = trim($_GET['search'] ?? '');
 $filter_type = $_GET['type'] ?? 'all';
 $filter_category = $_GET['category'] ?? 'all';
-$filter_status = $_GET['status'] ?? 'lost'; // lost, found, returned, all
+$filter_status = $_GET['status'] ?? 'lost';
 
 $sql = "SELECT i.*, u.full_name FROM items i JOIN users u ON i.user_id = u.user_id WHERE 1=1";
 $params = [];
 $types = "";
 
-// Status filter (lost, found, returned, all)
+// Status filter with pending_verification logic
 if ($filter_status === 'lost') {
-    $sql .= " AND i.status = 'lost'";
+    $sql .= " AND (i.status = 'lost' OR (i.status = 'pending_verification' AND i.user_id = ?))";
+    $params[] = $user_id;
+    $types .= "i";
 } elseif ($filter_status === 'found') {
     $sql .= " AND i.status = 'found'";
 } elseif ($filter_status === 'returned') {
     $sql .= " AND i.status = 'returned'";
+} else { // all
+    $sql .= " AND (i.status IN ('lost', 'found', 'returned') OR (i.status = 'pending_verification' AND i.user_id = ?))";
+    $params[] = $user_id;
+    $types .= "i";
 }
-// 'all' shows everything
 
 if (!empty($search)) {
     $sql .= " AND (i.item_name LIKE ? OR i.description LIKE ? OR i.location LIKE ?)";
@@ -52,11 +57,18 @@ if (!empty($params)) {
 $stmt->execute();
 $items = $stmt->get_result();
 
-// Counts for tabs
+// Counts for tabs (respecting pending_verification visibility)
 $lost_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'lost'")->fetch_assoc()['c'];
+$pending_count = $conn->prepare("SELECT COUNT(*) as c FROM items WHERE status = 'pending_verification' AND user_id = ?");
+$pending_count->bind_param("i", $user_id);
+$pending_count->execute();
+$my_pending = $pending_count->get_result()->fetch_assoc()['c'];
+$pending_count->close();
+$lost_total = $lost_count + $my_pending;
+
 $found_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'found'")->fetch_assoc()['c'];
 $returned_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'returned'")->fetch_assoc()['c'];
-$all_count = $lost_count + $found_count + $returned_count;
+$all_count = $lost_total + $found_count + $returned_count;
 
 $page_title = 'Browse Items';
 require_once '../includes/header.php';
@@ -77,12 +89,11 @@ function tabUrl($status, $search, $type, $category) {
         <p class="section-subtitle">Items transition through: <strong>Lost → Found → Returned</strong></p>
     </div>
 
-    <!-- STATUS TABS -->
     <ul class="nav nav-pills mb-4" style="gap: 10px; flex-wrap: wrap;">
         <li class="nav-item">
             <a class="nav-link" href="<?= tabUrl('lost', $search, $filter_type, $filter_category) ?>"
                style="<?= $filter_status === 'lost' ? 'background: linear-gradient(135deg, #EF4444, #DC2626); color: white;' : 'background: white; color: #0F172A; border: 2px solid #E2E8F0;' ?>">
-                <i class="bi bi-exclamation-circle"></i> Lost (<?= $lost_count ?>)
+                <i class="bi bi-exclamation-circle"></i> Lost (<?= $lost_total ?>)
             </a>
         </li>
         <li class="nav-item">
@@ -105,7 +116,6 @@ function tabUrl($status, $search, $type, $category) {
         </li>
     </ul>
 
-    <!-- FILTER FORM -->
     <div class="card mb-4">
         <div class="card-body">
             <form method="GET" class="row g-3">
@@ -135,7 +145,6 @@ function tabUrl($status, $search, $type, $category) {
         </div>
     </div>
 
-    <!-- ITEMS GRID -->
     <div class="row g-4">
         <?php if ($items->num_rows === 0): ?>
             <div class="col-12">
@@ -150,18 +159,24 @@ function tabUrl($status, $search, $type, $category) {
             </div>
         <?php else: ?>
             <?php while ($item = $items->fetch_assoc()): ?>
+                <?php
+                $is_pending = ($item['status'] === 'pending_verification');
+                $is_my_report = ($item['user_id'] == $user_id);
+                ?>
                 <div class="col-md-4">
-                    <div class="card h-100" <?= $item['status'] === 'returned' ? 'style="opacity: 0.7;"' : '' ?>>
+                    <div class="card h-100" <?= ($item['status'] === 'returned') ? 'style="opacity: 0.7;"' : '' ?>>
                         <?php if (!empty($item['image_path'])): ?>
                             <img src="../<?= htmlspecialchars($item['image_path']) ?>" class="card-img-top" style="height:220px; object-fit:cover; <?= $item['status'] === 'returned' ? 'filter: grayscale(60%);' : '' ?>">
                         <?php else: ?>
                             <div style="height:220px; background: linear-gradient(135deg, <?php
                                 if ($item['status'] === 'returned') echo '#64748B, #475569';
+                                elseif ($is_pending) echo '#F59E0B, #D97706';
                                 elseif ($item['status'] === 'found') echo '#10B981, #059669';
                                 else echo '#EF4444, #DC2626';
                             ?>); display: flex; align-items: center; justify-content: center;">
                                 <i class="bi bi-<?php
                                     if ($item['status'] === 'returned') echo 'archive-fill';
+                                    elseif ($is_pending) echo 'hourglass-split';
                                     elseif ($item['status'] === 'found') echo 'check-circle';
                                     else echo 'exclamation-circle';
                                 ?>" style="font-size: 3rem; color: rgba(255,255,255,0.5);"></i>
@@ -169,16 +184,20 @@ function tabUrl($status, $search, $type, $category) {
                         <?php endif; ?>
                         <div class="card-body">
                             <div class="mb-2">
-                                <span class="badge bg-<?php
-                                    if ($item['status'] === 'returned') echo 'primary';
-                                    elseif ($item['status'] === 'found') echo 'success';
-                                    else echo 'danger';
-                                ?>">
-                                    <?= ucfirst($item['status']) ?>
-                                </span>
-                                <span class="badge bg-secondary">
-                                    <?= htmlspecialchars($item['category']) ?>
-                                </span>
+                                <?php if ($is_pending): ?>
+                                    <span class="badge" style="background: linear-gradient(135deg, #F59E0B, #D97706); color: white;">
+                                        <i class="bi bi-hourglass-split"></i> Pending Verification
+                                    </span>
+                                <?php else: ?>
+                                    <span class="badge bg-<?php
+                                        if ($item['status'] === 'returned') echo 'primary';
+                                        elseif ($item['status'] === 'found') echo 'success';
+                                        else echo 'danger';
+                                    ?>">
+                                        <?= ucfirst($item['status']) ?>
+                                    </span>
+                                <?php endif; ?>
+                                <span class="badge bg-secondary"><?= htmlspecialchars($item['category']) ?></span>
                             </div>
                             <h5 class="fw-bold"><?= htmlspecialchars($item['item_name']) ?></h5>
                             <p class="small text-muted mb-2">
@@ -188,12 +207,19 @@ function tabUrl($status, $search, $type, $category) {
                                 <strong>Reported by:</strong> <?= htmlspecialchars($item['full_name']) ?>
                             </p>
 
-                            <?php if ($item['status'] === 'returned'): ?>
+                            <?php if ($is_pending && $is_my_report): ?>
+                                <div class="alert alert-warning small mb-0 p-2">
+                                    <i class="bi bi-info-circle"></i>
+                                    Someone found your item! Awaiting admin verification at the Lost and Found Office.
+                                </div>
+
+                            <?php elseif ($item['status'] === 'returned'): ?>
                                 <button class="btn btn-secondary btn-sm w-100" disabled>
                                     <i class="bi bi-archive"></i> Already Returned
                                 </button>
+
                             <?php elseif ($item['status'] === 'lost'): ?>
-                                <?php if ($item['user_id'] == $user_id): ?>
+                                <?php if ($is_my_report): ?>
                                     <button class="btn btn-outline-secondary btn-sm w-100" disabled>
                                         <i class="bi bi-hourglass-split"></i> Your Lost Report
                                     </button>
@@ -202,7 +228,8 @@ function tabUrl($status, $search, $type, $category) {
                                         <i class="bi bi-hand-thumbs-up"></i> I Found This Item
                                     </a>
                                 <?php endif; ?>
-                            <?php else: ?>
+
+                            <?php elseif ($item['status'] === 'found'): ?>
                                 <a href="submit_claim.php?item_id=<?= $item['item_id'] ?>" class="btn btn-primary btn-sm w-100">
                                     <i class="bi bi-hand-index"></i> Claim This Item
                                 </a>

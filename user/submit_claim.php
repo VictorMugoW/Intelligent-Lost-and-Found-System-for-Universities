@@ -38,9 +38,11 @@ $check->execute();
 $already_claimed = $check->get_result()->num_rows > 0;
 $check->close();
 
-// Find matching lost report by this user (supporting evidence)
+// Find best matching lost report by this user
 $supporting_lost_id = null;
 $supporting_lost_item = null;
+$best_breakdown = null;
+$best_score = 0;
 
 $lost_stmt = $conn->prepare("SELECT * FROM items WHERE user_id = ? AND type = 'lost' ORDER BY created_at DESC");
 $lost_stmt->bind_param("i", $user_id);
@@ -48,13 +50,13 @@ $lost_stmt->execute();
 $lost_items = $lost_stmt->get_result();
 $lost_stmt->close();
 
-$best_score = 0;
 while ($lost = $lost_items->fetch_assoc()) {
-    $score = calculateMatchScore($lost, $item);
-    if ($score > $best_score && $score >= 50) {
-        $best_score = $score;
+    $bd = getMatchBreakdown($lost, $item);
+    if ($bd['total'] > $best_score && $bd['total'] >= 50) {
+        $best_score = $bd['total'];
         $supporting_lost_id = $lost['item_id'];
         $supporting_lost_item = $lost;
+        $best_breakdown = $bd;
     }
 }
 
@@ -111,16 +113,66 @@ require_once '../includes/navbar.php';
                         </div>
                     </div>
 
-                    <?php if ($supporting_lost_item): ?>
-                        <div class="card mb-4" style="border: 2px solid #10B981; box-shadow: none;">
+                    <?php if ($best_breakdown): ?>
+                        <div class="card mb-4" style="border: 2px solid <?= $best_score >= 70 ? '#10B981' : '#F59E0B' ?>; box-shadow: none;">
                             <div class="card-body">
-                                <h5 class="fw-bold mb-2" style="color: #059669;">
-                                    <i class="bi bi-shield-check"></i> Supporting Evidence Found
-                                </h5>
-                                <p class="small text-muted mb-3">We found your own lost report that matches this item (Match score: <strong><?= $best_score ?>%</strong>). This will strengthen your claim.</p>
-                                <p class="mb-1"><strong>Your Lost Report:</strong> <?= htmlspecialchars($supporting_lost_item['item_name']) ?></p>
-                                <p class="mb-1"><strong>Reported on:</strong> <?= date('M d, Y', strtotime($supporting_lost_item['created_at'])) ?></p>
-                                <p class="mb-0"><strong>Details:</strong> <?= htmlspecialchars($supporting_lost_item['description']) ?></p>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="fw-bold mb-0">
+                                        <i class="bi bi-stars"></i> Match Analysis
+                                    </h5>
+                                    <span class="badge" style="font-size: 1rem; padding: 8px 14px; background: <?= $best_score >= 70 ? 'linear-gradient(135deg, #10B981, #059669)' : 'linear-gradient(135deg, #F59E0B, #D97706)' ?>;">
+                                        <?= $best_score ?>% Match
+                                    </span>
+                                </div>
+
+                                <p class="small text-muted mb-3">
+                                    We compared the item you are claiming against your own lost report:
+                                    <strong>"<?= htmlspecialchars($supporting_lost_item['item_name']) ?>"</strong>
+                                    (reported <?= date('M d, Y', strtotime($supporting_lost_item['created_at'])) ?>).
+                                </p>
+
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-2">
+                                        <thead>
+                                            <tr>
+                                                <th>Attribute</th>
+                                                <th class="text-center">Score</th>
+                                                <th>Details</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($best_breakdown as $key => $data): ?>
+                                                <?php if ($key === 'total') continue; ?>
+                                                <tr>
+                                                    <td>
+                                                        <strong><?= htmlspecialchars($data['label']) ?></strong>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <?php if ($data['matched']): ?>
+                                                            <span class="badge bg-success"><?= $data['score'] ?> / <?= $data['max'] ?></span>
+                                                        <?php else: ?>
+                                                            <span class="badge bg-secondary">0 / <?= $data['max'] ?></span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                    <td class="small text-muted"><?= htmlspecialchars($data['note']) ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                        <tfoot>
+                                            <tr style="background: #F1F5F9;">
+                                                <td><strong>Total Match Score</strong></td>
+                                                <td class="text-center"><strong><?= $best_score ?> / 100</strong></td>
+                                                <td class="small">
+                                                    <?php if ($best_score >= 70): ?>
+                                                        <span style="color: #059669;"><i class="bi bi-check-circle-fill"></i> Strong match — ready to claim</span>
+                                                    <?php else: ?>
+                                                        <span style="color: #D97706;"><i class="bi bi-exclamation-triangle-fill"></i> Weak match — admin will review carefully</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     <?php endif; ?>
