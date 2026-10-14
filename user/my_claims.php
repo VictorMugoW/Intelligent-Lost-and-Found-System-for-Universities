@@ -23,7 +23,6 @@ $stmt->execute();
 $claims = $stmt->get_result();
 $stmt->close();
 
-// Count rejected claims per item (to know if user has already been rejected twice)
 $rejected_counts = [];
 $rc = $conn->prepare("SELECT item_id, COUNT(*) as c FROM claims WHERE claimed_by = ? AND status = 'rejected' GROUP BY item_id");
 $rc->bind_param("i", $user_id);
@@ -48,12 +47,21 @@ require_once '../includes/navbar.php';
     <?php if ($claims->num_rows === 0): ?>
         <div class="card">
             <div class="card-body text-center p-5">
-                <div class="feature-icon mx-auto mb-3"><i class="bi bi-tags"></i></div>
-                <h5 class="fw-bold">No claims yet</h5>
-                <p class="text-muted">You haven't submitted any claims. Browse items to find something that belongs to you.</p>
-                <a href="browse_items.php" class="btn btn-primary mt-2">
-                    <i class="bi bi-search"></i> Browse Items
-                </a>
+                <div class="feature-icon mx-auto mb-3">
+                    <i class="bi bi-tags"></i>
+                </div>
+                <h5 class="fw-bold">No claims submitted yet</h5>
+                <p class="text-muted mb-3">
+                    If you've lost something and spotted it in the Found items list, submit a claim and the admin will review it.
+                </p>
+                <div class="d-flex gap-2 justify-content-center flex-wrap">
+                    <a href="browse_items.php?status=found" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Browse Found Items
+                    </a>
+                    <a href="report_item.php?type=lost" class="btn btn-outline-primary">
+                        <i class="bi bi-plus-circle"></i> Report a Lost Item
+                    </a>
+                </div>
             </div>
         </div>
     <?php else: ?>

@@ -10,22 +10,21 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit;
 }
 
-// Stat cards
 $total_items = $conn->query("SELECT COUNT(*) as c FROM items")->fetch_assoc()['c'];
 $returned_items = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'returned'")->fetch_assoc()['c'];
 $pending_claims = $conn->query("SELECT COUNT(*) as c FROM claims WHERE status = 'pending'")->fetch_assoc()['c'];
 $recovery_rate = ($total_items > 0) ? round(($returned_items / $total_items) * 100, 1) : 0;
 
-// Doughnut data
 $status_data = ['lost' => 0, 'found' => 0, 'returned' => 0];
 $res = $conn->query("SELECT status, COUNT(*) as c FROM items GROUP BY status");
 if ($res) {
     while ($row = $res->fetch_assoc()) {
-        $status_data[$row['status']] = (int)$row['c'];
+        if (isset($status_data[$row['status']])) {
+            $status_data[$row['status']] = (int)$row['c'];
+        }
     }
 }
 
-// Bar: Top categories
 $cat_labels = [];
 $cat_values = [];
 $res = $conn->query("SELECT category, COUNT(*) as c FROM items WHERE type = 'lost' GROUP BY category ORDER BY c DESC LIMIT 5");
@@ -36,7 +35,6 @@ if ($res) {
     }
 }
 
-// Bar: Hotspots
 $loc_labels = [];
 $loc_values = [];
 $res = $conn->query("SELECT location, COUNT(*) as c FROM items WHERE location IS NOT NULL AND location != '' GROUP BY location ORDER BY c DESC LIMIT 5");
@@ -47,7 +45,6 @@ if ($res) {
     }
 }
 
-// Line: Monthly
 $month_labels = [];
 $month_values = [];
 for ($i = 5; $i >= 0; $i--) {
@@ -61,7 +58,6 @@ for ($i = 5; $i >= 0; $i--) {
     $stmt->close();
 }
 
-// Prepare JSON for JavaScript
 $json_status = json_encode([$status_data['lost'], $status_data['found'], $status_data['returned']]);
 $json_cat_labels = json_encode($cat_labels);
 $json_cat_values = json_encode($cat_values);
@@ -150,7 +146,6 @@ require_once '../includes/navbar.php';
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Doughnut chart
     new Chart(document.getElementById('statusChart'), {
         type: 'doughnut',
         data: {
@@ -161,54 +156,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 borderWidth: 0
             }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom' } }
-        }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
     });
 
-    // Category chart
     new Chart(document.getElementById('categoryChart'), {
         type: 'bar',
         data: {
             labels: <?php echo $json_cat_labels; ?>,
-            datasets: [{
-                label: 'Lost Items',
-                data: <?php echo $json_cat_values; ?>,
-                backgroundColor: '#EF4444',
-                borderRadius: 8
-            }]
+            datasets: [{ label: 'Lost Items', data: <?php echo $json_cat_values; ?>, backgroundColor: '#EF4444', borderRadius: 8 }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
-        }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
     });
 
-    // Location chart
     new Chart(document.getElementById('locationChart'), {
         type: 'bar',
         data: {
             labels: <?php echo $json_loc_labels; ?>,
-            datasets: [{
-                label: 'Reports',
-                data: <?php echo $json_loc_values; ?>,
-                backgroundColor: '#0EA5E9',
-                borderRadius: 8
-            }]
+            datasets: [{ label: 'Reports', data: <?php echo $json_loc_values; ?>, backgroundColor: '#0EA5E9', borderRadius: 8 }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
-        }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
     });
 
-    // Monthly chart
     new Chart(document.getElementById('monthlyChart'), {
         type: 'line',
         data: {
@@ -225,12 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 pointRadius: 5
             }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
-        }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
     });
 });
 </script>

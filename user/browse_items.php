@@ -17,7 +17,6 @@ $sql = "SELECT i.*, u.full_name FROM items i JOIN users u ON i.user_id = u.user_
 $params = [];
 $types = "";
 
-// Status filter with pending_verification logic
 if ($filter_status === 'lost') {
     $sql .= " AND (i.status = 'lost' OR (i.status = 'pending_verification' AND i.user_id = ?))";
     $params[] = $user_id;
@@ -26,7 +25,7 @@ if ($filter_status === 'lost') {
     $sql .= " AND i.status = 'found'";
 } elseif ($filter_status === 'returned') {
     $sql .= " AND i.status = 'returned'";
-} else { // all
+} else {
     $sql .= " AND (i.status IN ('lost', 'found', 'returned') OR (i.status = 'pending_verification' AND i.user_id = ?))";
     $params[] = $user_id;
     $types .= "i";
@@ -57,7 +56,6 @@ if (!empty($params)) {
 $stmt->execute();
 $items = $stmt->get_result();
 
-// Counts for tabs (respecting pending_verification visibility)
 $lost_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'lost'")->fetch_assoc()['c'];
 $pending_count = $conn->prepare("SELECT COUNT(*) as c FROM items WHERE status = 'pending_verification' AND user_id = ?");
 $pending_count->bind_param("i", $user_id);
@@ -148,13 +146,43 @@ function tabUrl($status, $search, $type, $category) {
     <div class="row g-4">
         <?php if ($items->num_rows === 0): ?>
             <div class="col-12">
-                <div class="alert alert-info">
-                    <?php
-                    if ($filter_status === 'lost') echo 'No lost items currently awaiting recovery.';
-                    elseif ($filter_status === 'found') echo 'No recovered items waiting to be claimed.';
-                    elseif ($filter_status === 'returned') echo 'No returned items yet.';
-                    else echo 'No items found matching your criteria.';
-                    ?>
+                <div class="card">
+                    <div class="card-body text-center p-5">
+                        <?php if ($filter_status === 'lost'): ?>
+                            <div class="feature-icon mx-auto mb-3" style="background: linear-gradient(135deg, #EF4444, #DC2626);">
+                                <i class="bi bi-emoji-smile"></i>
+                            </div>
+                            <h5 class="fw-bold">No lost items right now! 🎉</h5>
+                            <p class="text-muted mb-3">Nothing is currently missing. Either everyone is careful or no one has reported yet.</p>
+                            <a href="report_item.php?type=lost" class="btn btn-primary">
+                                <i class="bi bi-plus-circle"></i> Report a Lost Item
+                            </a>
+                        <?php elseif ($filter_status === 'found'): ?>
+                            <div class="feature-icon mx-auto mb-3" style="background: linear-gradient(135deg, #10B981, #059669);">
+                                <i class="bi bi-search"></i>
+                            </div>
+                            <h5 class="fw-bold">No found items yet</h5>
+                            <p class="text-muted mb-3">No one has marked an item as found. If you find something, be the hero and report it!</p>
+                            <a href="browse_items.php?status=lost" class="btn btn-primary">
+                                <i class="bi bi-exclamation-circle"></i> Check Lost Items
+                            </a>
+                        <?php elseif ($filter_status === 'returned'): ?>
+                            <div class="feature-icon mx-auto mb-3" style="background: linear-gradient(135deg, #1E40AF, #3B82F6);">
+                                <i class="bi bi-archive"></i>
+                            </div>
+                            <h5 class="fw-bold">No returned items yet</h5>
+                            <p class="text-muted mb-3">Items will appear here once they have been successfully returned to their owners.</p>
+                        <?php else: ?>
+                            <div class="feature-icon mx-auto mb-3">
+                                <i class="bi bi-search"></i>
+                            </div>
+                            <h5 class="fw-bold">No items match your search</h5>
+                            <p class="text-muted mb-3">Try adjusting your filters or searching for a different keyword.</p>
+                            <a href="browse_items.php" class="btn btn-outline-primary">
+                                <i class="bi bi-arrow-clockwise"></i> Clear All Filters
+                            </a>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         <?php else: ?>

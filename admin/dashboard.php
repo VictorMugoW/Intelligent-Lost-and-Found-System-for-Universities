@@ -65,7 +65,7 @@ require_once '../includes/navbar.php';
     <div class="mt-5">
         <h4 class="fw-bold mb-3">Management</h4>
         <div class="row g-4">
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <a href="verify_found_items.php" class="text-decoration-none">
                     <div class="feature-card">
                         <div class="feature-icon" style="background: linear-gradient(135deg, #F59E0B, #D97706); position: relative;">
@@ -79,7 +79,7 @@ require_once '../includes/navbar.php';
                     </div>
                 </a>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <a href="manage_claims.php" class="text-decoration-none">
                     <div class="feature-card">
                         <div class="feature-icon"><i class="bi bi-clipboard-check"></i></div>
@@ -88,7 +88,7 @@ require_once '../includes/navbar.php';
                     </div>
                 </a>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <a href="verify_qr.php" class="text-decoration-none">
                     <div class="feature-card">
                         <div class="feature-icon"><i class="bi bi-qr-code-scan"></i></div>
@@ -97,12 +97,21 @@ require_once '../includes/navbar.php';
                     </div>
                 </a>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <a href="analytics.php" class="text-decoration-none">
                     <div class="feature-card">
                         <div class="feature-icon"><i class="bi bi-bar-chart-line"></i></div>
                         <h5>Analytics</h5>
                         <p>View recovery rates, hotspots, and trends.</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="reports.php" class="text-decoration-none">
+                    <div class="feature-card">
+                        <div class="feature-icon" style="background: linear-gradient(135deg, #0EA5E9, #0284C7);"><i class="bi bi-file-earmark-arrow-down"></i></div>
+                        <h5>Reports</h5>
+                        <p>Export system data as CSV for offline analysis.</p>
                     </div>
                 </a>
             </div>

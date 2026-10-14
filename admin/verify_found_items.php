@@ -62,9 +62,13 @@ require_once '../includes/navbar.php';
     <?php if ($pending->num_rows === 0): ?>
         <div class="card">
             <div class="card-body text-center p-5">
-                <div class="feature-icon mx-auto mb-3" style="background: linear-gradient(135deg, #10B981, #059669);"><i class="bi bi-shield-check"></i></div>
-                <h5 class="fw-bold">All clear!</h5>
-                <p class="text-muted mb-0">No items are currently awaiting verification.</p>
+                <div class="feature-icon mx-auto mb-3" style="background: linear-gradient(135deg, #10B981, #059669);">
+                    <i class="bi bi-shield-check"></i>
+                </div>
+                <h5 class="fw-bold">All clear! 🎉</h5>
+                <p class="text-muted mb-0">
+                    No items are currently awaiting verification. When a user marks an item as found, it will appear here.
+                </p>
             </div>
         </div>
     <?php else: ?>

@@ -13,11 +13,6 @@ $message = '';
 $message_type = '';
 $matches = [];
 
-$pre_type = $_GET['type'] ?? 'lost';
-if (!in_array($pre_type, ['lost', 'found'])) {
-    $pre_type = 'lost';
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $item_name = trim($_POST['item_name']);
     $category = trim($_POST['category']);
@@ -25,9 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $colour = trim($_POST['colour']);
     $location = trim($_POST['location']);
     $date_lost_found = $_POST['date_lost_found'];
-    $type = $_POST['type'];
+    $type = 'lost'; // Locked to lost
 
-    if (empty($item_name) || empty($category) || empty($type)) {
+    if (empty($item_name) || empty($category)) {
         $message = 'Please fill in all required fields.';
         $message_type = 'danger';
     } else {
@@ -51,13 +46,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($message)) {
             $stmt = $conn->prepare("INSERT INTO items (user_id, item_name, category, description, colour, location, date_lost_found, image_path, type, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $status = ($type === 'lost') ? 'lost' : 'found';
+            $status = 'lost';
             $stmt->bind_param("isssssssss", $user_id, $item_name, $category, $description, $colour, $location, $date_lost_found, $image_path, $type, $status);
 
             if ($stmt->execute()) {
                 $new_item_id = $stmt->insert_id;
                 $stmt->close();
-                $message = 'Item reported successfully!';
+                $message = 'Lost item reported successfully!';
                 $message_type = 'success';
                 $matches = runMatchingEngine($conn, $new_item_id);
             } else {
@@ -69,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$page_title = 'Report Item';
+$page_title = 'Report Lost Item';
 require_once '../includes/header.php';
 require_once '../includes/navbar.php';
 ?>
@@ -80,9 +75,11 @@ require_once '../includes/navbar.php';
             <div class="card">
                 <div class="card-body p-5">
                     <div class="text-center mb-4">
-                        <div class="feature-icon mx-auto mb-3"><i class="bi bi-plus-circle"></i></div>
-                        <h3 class="fw-bold">Report an Item</h3>
-                        <p class="text-muted">Provide details about the lost or found item</p>
+                        <div class="feature-icon mx-auto mb-3" style="background: linear-gradient(135deg, #EF4444, #DC2626);">
+                            <i class="bi bi-exclamation-circle"></i>
+                        </div>
+                        <h3 class="fw-bold">Report a Lost Item</h3>
+                        <p class="text-muted">Provide details about the item you have lost</p>
                     </div>
 
                     <?php if ($message): ?>
@@ -91,15 +88,8 @@ require_once '../includes/navbar.php';
 
                     <form method="POST" enctype="multipart/form-data">
                         <div class="mb-3">
-                            <label class="form-label">Item Type *</label>
-                            <select name="type" class="form-select" required>
-                                <option value="lost" <?= $pre_type === 'lost' ? 'selected' : '' ?>>Lost Item</option>
-                                <option value="found" <?= $pre_type === 'found' ? 'selected' : '' ?>>Found Item</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
                             <label class="form-label">Item Name *</label>
-                            <input type="text" name="item_name" class="form-control" required>
+                            <input type="text" name="item_name" class="form-control" required placeholder="e.g. Samsung Phone, Student ID">
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Category *</label>
@@ -115,25 +105,25 @@ require_once '../includes/navbar.php';
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Colour</label>
-                            <input type="text" name="colour" class="form-control">
+                            <input type="text" name="colour" class="form-control" placeholder="e.g. Black, Blue">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Location</label>
+                            <label class="form-label">Where did you lose it?</label>
                             <input type="text" name="location" class="form-control" placeholder="e.g. Library, LT3">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Date Lost/Found</label>
-                            <input type="date" name="date_lost_found" class="form-control">
+                            <label class="form-label">Date Lost</label>
+                            <input type="date" name="date_lost_found" class="form-control" value="<?= date('Y-m-d') ?>">
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Description</label>
-                            <textarea name="description" class="form-control" rows="3"></textarea>
+                            <textarea name="description" class="form-control" rows="3" placeholder="Any distinguishing features (brand, scratches, stickers, etc.)"></textarea>
                         </div>
                         <div class="mb-4">
                             <label class="form-label">Image (max 5MB)</label>
                             <input type="file" name="image" class="form-control" accept="image/*">
                         </div>
-                        <button type="submit" class="btn btn-primary">Submit Report</button>
+                        <button type="submit" class="btn btn-primary">Submit Lost Report</button>
                         <a href="dashboard.php" class="btn btn-outline-secondary">Cancel</a>
                     </form>
                 </div>
@@ -144,7 +134,7 @@ require_once '../includes/navbar.php';
                     <h4 class="fw-bold mb-3">
                         <i class="bi bi-stars text-primary"></i> Intelligent Match Suggestions
                     </h4>
-                    <p class="text-muted">We found <?= count($matches) ?> potential match(es) for your item:</p>
+                    <p class="text-muted">We found <?= count($matches) ?> potential match(es) already in the system:</p>
 
                     <div class="row g-4">
                         <?php foreach ($matches as $match): ?>
