@@ -22,10 +22,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $date_lost_found = $_POST['date_lost_found'];
     $type = 'lost'; // Locked to lost
 
-    if (empty($item_name) || empty($category)) {
-        $message = 'Please fill in all required fields.';
+    if (empty($item_name) || empty($category) || empty($location)) {
+        $message = 'Please fill in all required fields including location.';
         $message_type = 'danger';
     } else {
+        // --- AUTO-MAP LOGIC ---
+        // Check if this location already exists in our campus map
+        $loc_check = $conn->prepare("SELECT id, report_count FROM campus_locations WHERE location_name = ?");
+        $loc_check->bind_param("s", $location);
+        $loc_check->execute();
+        $loc_result = $loc_check->get_result();
+
+        if ($loc_result->num_rows > 0) {
+            // Location exists, increment the count
+            $loc_row = $loc_result->fetch_assoc();
+            $new_count = $loc_row['report_count'] + 1;
+            $update_loc = $conn->prepare("UPDATE campus_locations SET report_count = ? WHERE id = ?");
+            $update_loc->bind_param("ii", $new_count, $loc_row['id']);
+            $update_loc->execute();
+            $update_loc->close();
+        } else {
+            // NEW location! Add it with a default coordinate and flag it as unmapped
+            $default_lat = -1.3102;
+            $default_lng = 36.8123;
+            $insert_loc = $conn->prepare("INSERT INTO campus_locations (location_name, latitude, longitude, report_count, is_mapped) VALUES (?, ?, ?, 1, FALSE)");
+            $insert_loc->bind_param("sdd", $location, $default_lat, $default_lng);
+            $insert_loc->execute();
+            $insert_loc->close();
+        }
+        $loc_check->close();
+        // --- END AUTO-MAP LOGIC ---
+
         $image_path = null;
 
         if (!empty($_FILES['image']['name'])) {
@@ -108,8 +135,8 @@ require_once '../includes/navbar.php';
                             <input type="text" name="colour" class="form-control" placeholder="e.g. Black, Blue">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Where did you lose it?</label>
-                            <input type="text" name="location" class="form-control" placeholder="e.g. Library, LT3">
+                            <label class="form-label">Where did you lose it? *</label>
+                            <input type="text" name="location" class="form-control" placeholder="e.g. Library, LT3" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Date Lost</label>

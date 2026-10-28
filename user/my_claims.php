@@ -114,6 +114,9 @@ require_once '../includes/navbar.php';
                                         <p class="mt-1 mb-0"><code><?= htmlspecialchars($c['qr_token']) ?></code></p>
                                     </div>
                                 </div>
+                                <a href="download_receipt.php?claim_id=<?= $c['claim_id'] ?>" class="btn btn-success btn-sm w-100 mt-2">
+                                    <i class="bi bi-file-earmark-pdf"></i> Download Collection Receipt (PDF)
+                                </a>
 
                             <?php elseif ($c['status'] === 'rejected'): ?>
                                 <?php

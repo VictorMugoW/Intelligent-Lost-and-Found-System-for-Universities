@@ -23,10 +23,12 @@ $base = '/intelligent-lost-and-found';
                         <li class="nav-item"><a class="nav-link" href="<?= $base ?>/admin/verify_qr.php">Verify QR</a></li>
                         <li class="nav-item"><a class="nav-link" href="<?= $base ?>/admin/analytics.php">Analytics</a></li>
                         <li class="nav-item"><a class="nav-link" href="<?= $base ?>/admin/reports.php">Reports</a></li>
+                        <li class="nav-item"><a class="nav-link" href="<?= $base ?>/user/campus_map.php">Campus Map</a></li>
                     <?php else: ?>
                         <li class="nav-item"><a class="nav-link" href="<?= $base ?>/user/dashboard.php">Dashboard</a></li>
                         <li class="nav-item"><a class="nav-link" href="<?= $base ?>/user/report_item.php">Report</a></li>
                         <li class="nav-item"><a class="nav-link" href="<?= $base ?>/user/browse_items.php">Browse</a></li>
+                        <li class="nav-item"><a class="nav-link" href="<?= $base ?>/user/campus_map.php">Campus Map</a></li>
                     <?php endif; ?>
 
                     <li class="nav-item dropdown ms-2">

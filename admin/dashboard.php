@@ -7,12 +7,47 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit;
 }
 
+$admin_id = $_SESSION['user_id'];
 $full_name = $_SESSION['full_name'];
+
+// Handle office status update
+$status_message = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['office_status'])) {
+    $new_status = $_POST['office_status'];
+    if (in_array($new_status, ['available', 'lunch', 'closed'])) {
+        $stmt = $conn->prepare("UPDATE office_settings SET status = ? WHERE id = 1");
+        $stmt->bind_param("s", $new_status);
+        $stmt->execute();
+        $stmt->close();
+        $status_message = "Office status updated successfully.";
+    }
+}
+
+// Fetch current office status
+$office = $conn->query("SELECT status, opening_time, closing_time FROM office_settings WHERE id = 1")->fetch_assoc();
+if (!$office) {
+    $office = ['status' => 'closed', 'opening_time' => '08:00:00', 'closing_time' => '17:00:00'];
+}
+
 $total_users = $conn->query("SELECT COUNT(*) as c FROM users")->fetch_assoc()['c'];
 $total_items = $conn->query("SELECT COUNT(*) as c FROM items")->fetch_assoc()['c'];
 $pending_claims = $conn->query("SELECT COUNT(*) as c FROM claims WHERE status = 'pending'")->fetch_assoc()['c'];
 $returned_items = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'returned'")->fetch_assoc()['c'];
 $pending_verifications = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'pending_verification'")->fetch_assoc()['c'];
+
+// Status styling helpers
+$status_color = 'success';
+$status_text = 'Available Now';
+$status_icon = 'check-circle-fill';
+if ($office['status'] === 'lunch') {
+    $status_color = 'warning';
+    $status_text = 'On Lunch Break';
+    $status_icon = 'cup-hot-fill';
+} elseif ($office['status'] === 'closed') {
+    $status_color = 'danger';
+    $status_text = 'Closed';
+    $status_icon = 'x-circle-fill';
+}
 
 $page_title = 'Admin Dashboard';
 require_once '../includes/header.php';
@@ -23,6 +58,40 @@ require_once '../includes/navbar.php';
     <div class="mb-4">
         <h2 class="section-title">Admin Dashboard</h2>
         <p class="section-subtitle">System overview and management</p>
+    </div>
+
+    <?php if ($status_message): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle"></i> <?= htmlspecialchars($status_message) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
+
+    <!-- Office Status Control -->
+    <div class="card mb-4 shadow-sm" style="border-left: 5px solid var(--bs-<?= $status_color ?>);">
+        <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div style="width: 60px; height: 60px; border-radius: 50%; background: var(--bs-<?= $status_color ?>); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.8rem;">
+                    <i class="bi bi-<?= $status_icon ?>"></i>
+                </div>
+                <div>
+                    <h5 class="fw-bold mb-1">Lost & Found Office Status</h5>
+                    <p class="text-muted mb-0">
+                        Currently: <strong class="text-<?= $status_color ?>"><?= $status_text ?></strong>
+                        <span class="mx-2">|</span>
+                        Hours: <?= date('g:i A', strtotime($office['opening_time'])) ?> - <?= date('g:i A', strtotime($office['closing_time'])) ?>
+                    </p>
+                </div>
+            </div>
+            <form method="POST" class="d-flex gap-2">
+                <select name="office_status" class="form-select" style="width: auto;">
+                    <option value="available" <?= $office['status'] === 'available' ? 'selected' : '' ?>>🟢 Available Now</option>
+                    <option value="lunch" <?= $office['status'] === 'lunch' ? 'selected' : '' ?>>🟡 On Lunch Break</option>
+                    <option value="closed" <?= $office['status'] === 'closed' ? 'selected' : '' ?>>🔴 Closed</option>
+                </select>
+                <button type="submit" class="btn btn-primary">Update</button>
+            </form>
+        </div>
     </div>
 
     <?php if ($pending_verifications > 0): ?>
@@ -112,6 +181,15 @@ require_once '../includes/navbar.php';
                         <div class="feature-icon" style="background: linear-gradient(135deg, #0EA5E9, #0284C7);"><i class="bi bi-file-earmark-arrow-down"></i></div>
                         <h5>Reports</h5>
                         <p>Export system data as CSV for offline analysis.</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="campus_map_editor.php" class="text-decoration-none">
+                    <div class="feature-card">
+                        <div class="feature-icon" style="background: linear-gradient(135deg, #10B981, #059669);"><i class="bi bi-map"></i></div>
+                        <h5>Campus Map Editor</h5>
+                        <p>Set office GPS location and map out loss hotspots.</p>
                     </div>
                 </a>
             </div>

@@ -11,6 +11,25 @@ $user_id = $_SESSION['user_id'];
 $full_name = $_SESSION['full_name'];
 $role = $_SESSION['role'];
 
+// Fetch current office status
+$office = $conn->query("SELECT status, opening_time, closing_time FROM office_settings WHERE id = 1")->fetch_assoc();
+if (!$office) {
+    $office = ['status' => 'closed', 'opening_time' => '08:00:00', 'closing_time' => '17:00:00'];
+}
+
+$status_color = 'success';
+$status_text = 'Available Now';
+$status_icon = 'check-circle-fill';
+if ($office['status'] === 'lunch') {
+    $status_color = 'warning';
+    $status_text = 'On Lunch Break';
+    $status_icon = 'cup-hot-fill';
+} elseif ($office['status'] === 'closed') {
+    $status_color = 'danger';
+    $status_text = 'Closed';
+    $status_icon = 'x-circle-fill';
+}
+
 $total_items = $conn->query("SELECT COUNT(*) as c FROM items")->fetch_assoc()['c'];
 
 $stmt = $conn->prepare("SELECT COUNT(*) as c FROM items WHERE user_id = ?");
@@ -34,6 +53,24 @@ require_once '../includes/navbar.php';
     <div class="mb-4">
         <h2 class="section-title">Welcome back, <?= htmlspecialchars($full_name) ?> 👋</h2>
         <p class="section-subtitle">Here's an overview of your lost and found activity</p>
+    </div>
+
+    <!-- Office Status Alert -->
+    <div class="alert alert-<?= $status_color ?> d-flex align-items-center shadow-sm" style="border-left: 5px solid currentColor;">
+        <i class="bi bi-<?= $status_icon ?> fs-3 me-3"></i>
+        <div>
+            <h6 class="fw-bold mb-1">Lost & Found Office Status: <?= $status_text ?></h6>
+            <p class="mb-0 small">
+                Operating hours: <?= date('g:i A', strtotime($office['opening_time'])) ?> - <?= date('g:i A', strtotime($office['closing_time'])) ?>. 
+                <?php if ($office['status'] === 'available'): ?>
+                    You can visit the office now to collect or drop off items.
+                <?php elseif ($office['status'] === 'lunch'): ?>
+                    The attendant is currently on a lunch break. Please wait or visit later.
+                <?php else: ?>
+                    The office is currently closed. Please visit during operating hours.
+                <?php endif; ?>
+            </p>
+        </div>
     </div>
 
     <div class="row g-4">
