@@ -23,44 +23,6 @@ require_once 'includes/header.php';
 require_once 'includes/navbar.php';
 ?>
 
-<style>
-    /* Fade-in animation */
-    .fade-in-section {
-        opacity: 0;
-        transform: translateY(30px);
-        transition: opacity 0.7s ease-out, transform 0.7s ease-out;
-    }
-    .fade-in-section.visible {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
-    /* Floating animation for hero icons */
-    @keyframes float {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-12px); }
-    }
-    .float-icon {
-        animation: float 3s ease-in-out infinite;
-    }
-
-    /* Stat number counter */
-    .stat-number {
-        font-size: 3rem;
-        font-weight: 800;
-        color: white;
-        line-height: 1;
-    }
-    .stat-label {
-        font-size: 0.9rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        opacity: 0.85;
-        color: white;
-    }
-</style>
-
 <!-- HERO -->
 <section class="hero">
     <div class="container hero-content text-center">

@@ -72,102 +72,101 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $page_title = 'Register';
 require_once '../includes/header.php';
-require_once '../includes/navbar.php';
 ?>
 
-<div class="container" style="margin-top: 4rem;">
+<div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-body p-5">
-                    <div class="text-center mb-4">
-                        <div class="feature-icon mx-auto mb-3"><i class="bi bi-person-plus"></i></div>
-                        <h3 class="fw-bold">Create Account</h3>
-                        <p class="text-muted">Join the Lost and Found community</p>
-                    </div>
+        <div class="col-md-8 col-lg-6">
+            
+            <!-- Back to Home -->
+            <a href="../index.php" class="text-decoration-none fw-bold mb-4 d-inline-block" style="color: var(--primary);">
+                <i class="bi bi-arrow-left me-1"></i> Back to Home
+            </a>
 
+            <div class="card border-0 shadow-lg" style="border-radius: 1rem; overflow: hidden;">
+                <!-- Card Header Gradient -->
+                <div class="card-header text-white text-center py-4" style="background: linear-gradient(135deg, var(--primary-dark), var(--primary-light)); border: none;">
+                    <div class="feature-icon mx-auto mb-3" style="background: rgba(255,255,255,0.2); width: 64px; height: 64px; border-radius: 1rem; display: flex; align-items: center; justify-content: center; font-size: 2rem;">
+                        <i class="bi bi-person-plus"></i>
+                    </div>
+                    <h3 class="fw-bold mb-1" style="color: white;">Create Account</h3>
+                    <p class="mb-0" style="color: rgba(255,255,255,0.8);">Join the Lost & Found community</p>
+                </div>
+
+                <div class="card-body p-4 p-md-5">
                     <?php if ($message): ?>
-                        <div class="alert alert-<?= $message_type ?>"><?= htmlspecialchars($message) ?></div>
+                        <div class="alert alert-<?= $message_type ?> border-0 shadow-sm" role="alert">
+                            <i class="bi bi-info-circle me-2"></i> <?= htmlspecialchars($message) ?>
+                        </div>
                     <?php endif; ?>
 
                     <form method="POST" id="registerForm">
-                        <div class="mb-3">
-                            <label class="form-label">Full Name *</label>
-                            <input type="text" name="full_name" class="form-control" required>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Email *</label>
-                            <input type="email" name="email" class="form-control" required>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Phone</label>
-                            <div class="input-group">
-                                <span class="input-group-text fw-bold" style="background: #0F172A; color: white; border: 2px solid #0F172A;">+254</span>
-                                <input type="text"
-                                       name="phone_suffix"
-                                       id="phone_suffix"
-                                       class="form-control"
-                                       placeholder="703364745"
-                                       maxlength="9"
-                                       inputmode="numeric"
-                                       pattern="[0-9]{9}"
-                                       autocomplete="off">
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                                <input type="text" name="full_name" class="form-control" placeholder="John Doe" required>
                             </div>
-                            <div class="form-text" id="phone_help">Enter the 9 digits after +254. Example: 703364745</div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Email Address <span class="text-danger">*</span></label>
+                                <input type="email" name="email" class="form-control" placeholder="name@example.com" required>
+                            </div>
                         </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Role *</label>
-                            <select name="role" id="role" class="form-select" required onchange="toggleIdField()">
-                                <option value="student">Student</option>
-                                <option value="staff">Staff</option>
-                            </select>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Phone Number</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light fw-bold">+254</span>
+                                    <input type="text" name="phone_suffix" id="phone_suffix" class="form-control" placeholder="703364745" maxlength="9" inputmode="numeric" pattern="[0-9]{9}" autocomplete="off">
+                                </div>
+                                <div class="form-text" id="phone_help" style="font-size: 0.75rem;">Enter the 9 digits after +254.</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">I am a... <span class="text-danger">*</span></label>
+                                <select name="role" id="role" class="form-select" required onchange="toggleIdField()">
+                                    <option value="student">Student</option>
+                                    <option value="staff">Staff Member</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div class="mb-3" id="studentIdField">
                             <label class="form-label">Student Registration Number</label>
-                            <input type="text" name="student_id" class="form-control">
+                            <input type="text" name="student_id" class="form-control" placeholder="e.g., S1234567">
                         </div>
 
                         <div class="mb-3 d-none" id="staffIdField">
                             <label class="form-label">Staff Number</label>
-                            <input type="text" name="staff_id" class="form-control">
+                            <input type="text" name="staff_id" class="form-control" placeholder="e.g., STF-001">
                         </div>
 
                         <div class="mb-4">
-                            <label class="form-label">Password *</label>
-                            <input type="password" name="password" id="password" class="form-control" required autocomplete="new-password">
-                            <div class="mt-2" id="pw_rules">
-                                <div class="small text-muted mb-1">Password must contain:</div>
-                                <div class="pw-rule" id="rule_len" style="font-size: 0.85rem; color: #64748B;">
-                                    <i class="bi bi-circle"></i> At least 8 characters
-                                </div>
-                                <div class="pw-rule" id="rule_lower" style="font-size: 0.85rem; color: #64748B;">
-                                    <i class="bi bi-circle"></i> One lowercase letter (a-z)
-                                </div>
-                                <div class="pw-rule" id="rule_upper" style="font-size: 0.85rem; color: #64748B;">
-                                    <i class="bi bi-circle"></i> One uppercase letter (A-Z)
-                                </div>
-                                <div class="pw-rule" id="rule_digit" style="font-size: 0.85rem; color: #64748B;">
-                                    <i class="bi bi-circle"></i> One number (0-9)
-                                </div>
-                                <div class="pw-rule" id="rule_special" style="font-size: 0.85rem; color: #64748B;">
-                                    <i class="bi bi-circle"></i> One special character (!@#$%^&*)
-                                </div>
+                            <label class="form-label">Password <span class="text-danger">*</span></label>
+                            <input type="password" name="password" id="password" class="form-control" placeholder="Create a strong password" required autocomplete="new-password">
+                            
+                            <div class="mt-3 p-3 rounded" id="pw_rules" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+                                <div class="small text-muted mb-2 fw-bold">Password must contain:</div>
+                                <div class="pw-rule" id="rule_len" style="font-size: 0.85rem; color: #64748B;"><i class="bi bi-circle"></i> At least 8 characters</div>
+                                <div class="pw-rule" id="rule_lower" style="font-size: 0.85rem; color: #64748B;"><i class="bi bi-circle"></i> One lowercase letter (a-z)</div>
+                                <div class="pw-rule" id="rule_upper" style="font-size: 0.85rem; color: #64748B;"><i class="bi bi-circle"></i> One uppercase letter (A-Z)</div>
+                                <div class="pw-rule" id="rule_digit" style="font-size: 0.85rem; color: #64748B;"><i class="bi bi-circle"></i> One number (0-9)</div>
+                                <div class="pw-rule" id="rule_special" style="font-size: 0.85rem; color: #64748B;"><i class="bi bi-circle"></i> One special character (!@#$%^&*)</div>
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-primary w-100">Register</button>
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">
+                            Create Account <i class="bi bi-check-circle ms-1"></i>
+                        </button>
                     </form>
 
-                    <div class="text-center mt-4">
-                        <span class="text-muted">Already have an account?</span>
-                        <a href="login.php" class="fw-bold">Login</a>
+                    <div class="text-center mt-4 pt-4 border-top">
+                        <span class="text-muted small">Already have an account?</span>
+                        <a href="login.php" class="fw-bold text-decoration-none small ms-1" style="color: var(--primary);">Sign In</a>
                     </div>
                 </div>
             </div>
+
         </div>
     </div>
 </div>

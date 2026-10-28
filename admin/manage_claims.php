@@ -79,126 +79,139 @@ $approved = $conn->query("
 $page_title = 'Manage Claims';
 require_once '../includes/header.php';
 require_once '../includes/navbar.php';
+require_once '../includes/admin_layout_top.php';
 ?>
 
-<div class="container mt-5">
-    <div class="mb-4">
-        <h2 class="section-title">Manage Claims</h2>
-        <p class="section-subtitle">Review pending claims and approve or reject them</p>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1">Manage Claims</h2>
+        <p class="text-muted mb-0">Review pending claims and approve or reject them</p>
     </div>
-
-    <?php if ($message): ?>
-        <div class="alert alert-<?= $message_type ?>"><?= htmlspecialchars($message) ?></div>
-    <?php endif; ?>
-
-    <h4 class="fw-bold mb-3">Pending Claims</h4>
-    <?php if ($claims->num_rows === 0): ?>
-        <div class="alert alert-info">No pending claims at the moment.</div>
-    <?php else: ?>
-        <div class="row g-4">
-            <?php while ($c = $claims->fetch_assoc()): ?>
-                <div class="col-md-6">
-                    <div class="card h-100">
-                        <div class="card-header" style="background: linear-gradient(135deg, #F59E0B, #D97706); color: white;">
-                            <strong>Claim #<?= $c['claim_id'] ?></strong>
-                        </div>
-                        <div class="card-body">
-                            <?php if ($c['image_path']): ?>
-                                <img src="../<?= htmlspecialchars($c['image_path']) ?>" class="img-fluid rounded mb-3" style="max-height:200px;">
-                            <?php endif; ?>
-                            <h5 class="fw-bold"><?= htmlspecialchars($c['item_name']) ?></h5>
-                            <p class="small mb-1"><strong>Category:</strong> <?= htmlspecialchars($c['category']) ?></p>
-                            <p class="small mb-1"><strong>Colour:</strong> <?= htmlspecialchars($c['colour'] ?: 'N/A') ?></p>
-                            <p class="small mb-1"><strong>Location:</strong> <?= htmlspecialchars($c['location'] ?: 'N/A') ?></p>
-                            <p class="small mb-2"><strong>Description:</strong> <?= htmlspecialchars($c['description']) ?></p>
-                            <hr>
-                            <p class="small mb-1"><strong>Claimant:</strong> <?= htmlspecialchars($c['claimant']) ?></p>
-                            <p class="small mb-1"><strong>Email:</strong> <?= htmlspecialchars($c['claimant_email']) ?></p>
-                            <p class="small mb-3"><strong>Claim Reason:</strong> <?= htmlspecialchars($c['claim_reason']) ?></p>
-
-                            <?php
-                            // If there's supporting evidence, fetch the lost report
-                            if (!empty($c['supporting_lost_item_id'])):
-                                $lost_id = intval($c['supporting_lost_item_id']);
-                                $lost = $conn->query("SELECT item_name, description, colour, location, date_lost_found, created_at FROM items WHERE item_id = $lost_id")->fetch_assoc();
-                                if ($lost):
-                            ?>
-                                <div class="card mb-3" style="border: 2px solid #10B981; box-shadow: none;">
-                                    <div class="card-body p-3">
-                                        <h6 class="fw-bold mb-2" style="color: #059669;">
-                                            <i class="bi bi-shield-check"></i> Supporting Evidence
-                                        </h6>
-                                        <p class="small mb-1"><strong>Claimant's own Lost Report:</strong> <?= htmlspecialchars($lost['item_name']) ?></p>
-                                        <p class="small mb-1"><strong>Reported on:</strong> <?= date('M d, Y', strtotime($lost['created_at'])) ?></p>
-                                        <p class="small mb-1"><strong>Colour:</strong> <?= htmlspecialchars($lost['colour'] ?: 'N/A') ?></p>
-                                        <p class="small mb-1"><strong>Location:</strong> <?= htmlspecialchars($lost['location'] ?: 'N/A') ?></p>
-                                        <p class="small mb-0"><strong>Description:</strong> <?= htmlspecialchars($lost['description']) ?></p>
-                                    </div>
-                                </div>
-                            <?php endif; endif; ?>
-
-                            <!-- Approve Form -->
-                            <form method="POST" class="mb-2">
-                                <input type="hidden" name="claim_id" value="<?= $c['claim_id'] ?>">
-                                <button type="submit" name="action" value="approve" class="btn btn-success btn-sm w-100">
-                                    <i class="bi bi-check-circle"></i> Approve Claim
-                                </button>
-                            </form>
-
-                            <!-- Reject Form (with reason) -->
-                            <form method="POST">
-                                <input type="hidden" name="claim_id" value="<?= $c['claim_id'] ?>">
-                                <div class="mb-2">
-                                    <label class="form-label small fw-bold">Reason for Rejection (required if rejecting):</label>
-                                    <textarea name="admin_reason" class="form-control form-control-sm" rows="2" placeholder="e.g. The description does not match the item's details"></textarea>
-                                </div>
-                                <button type="submit" name="action" value="reject" class="btn btn-danger btn-sm w-100">
-                                    <i class="bi bi-x-circle"></i> Reject Claim
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            <?php endwhile; ?>
-        </div>
-    <?php endif; ?>
-
-    <hr class="my-5">
-
-    <h4 class="fw-bold mb-3">Recently Approved (QR Generated)</h4>
-    <?php if ($approved->num_rows === 0): ?>
-        <div class="alert alert-secondary">No approved claims yet.</div>
-    <?php else: ?>
-        <div class="table-responsive">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Claim ID</th>
-                        <th>Item</th>
-                        <th>Claimant</th>
-                        <th>QR Code</th>
-                        <th>Token</th>
-                        <th>Generated At</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php while ($a = $approved->fetch_assoc()): ?>
-                        <tr>
-                            <td><strong>#<?= $a['claim_id'] ?></strong></td>
-                            <td><?= htmlspecialchars($a['item_name']) ?></td>
-                            <td><?= htmlspecialchars($a['claimant']) ?></td>
-                            <td><img src="../qrcodes/claim_<?= $a['claim_id'] ?>.png" width="70" class="rounded"></td>
-                            <td><code><?= htmlspecialchars($a['qr_token']) ?></code></td>
-                            <td><?= $a['qr_generated_at'] ?></td>
-                        </tr>
-                    <?php endwhile; ?>
-                </tbody>
-            </table>
-        </div>
-    <?php endif; ?>
 </div>
 
-<?php require_once '../includes/footer.php'; ?>
+<?php if ($message): ?>
+    <div class="alert alert-<?= $message_type ?> shadow-sm"><?= htmlspecialchars($message) ?></div>
+<?php endif; ?>
+
+<h5 class="fw-bold mb-3">Pending Claims</h5>
+<?php if ($claims->num_rows === 0): ?>
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center p-5">
+            <div class="feature-icon mx-auto mb-3" style="background: linear-gradient(135deg, #10B981, #059669);">
+                <i class="bi bi-check-all"></i>
+            </div>
+            <h5 class="fw-bold">All caught up! 🎉</h5>
+            <p class="text-muted mb-0">No pending claims at the moment. Everything is reviewed.</p>
+        </div>
+    </div>
+<?php else: ?>
+    <div class="row g-4">
+        <?php while ($c = $claims->fetch_assoc()): ?>
+            <div class="col-md-6">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-header" style="background: linear-gradient(135deg, #F59E0B, #D97706); color: white;">
+                        <strong>Claim #<?= $c['claim_id'] ?></strong>
+                    </div>
+                    <div class="card-body">
+                        <?php if ($c['image_path']): ?>
+                            <img src="../<?= htmlspecialchars($c['image_path']) ?>" class="img-fluid rounded mb-3" style="max-height:200px;">
+                        <?php endif; ?>
+                        <h5 class="fw-bold"><?= htmlspecialchars($c['item_name']) ?></h5>
+                        <p class="small mb-1"><strong>Category:</strong> <?= htmlspecialchars($c['category']) ?></p>
+                        <p class="small mb-1"><strong>Colour:</strong> <?= htmlspecialchars($c['colour'] ?: 'N/A') ?></p>
+                        <p class="small mb-1"><strong>Location:</strong> <?= htmlspecialchars($c['location'] ?: 'N/A') ?></p>
+                        <p class="small mb-2"><strong>Description:</strong> <?= htmlspecialchars($c['description']) ?></p>
+                        <hr>
+                        <p class="small mb-1"><strong>Claimant:</strong> <?= htmlspecialchars($c['claimant']) ?></p>
+                        <p class="small mb-1"><strong>Email:</strong> <?= htmlspecialchars($c['claimant_email']) ?></p>
+                        <p class="small mb-3"><strong>Claim Reason:</strong> <?= htmlspecialchars($c['claim_reason']) ?></p>
+
+                        <?php
+                        if (!empty($c['supporting_lost_item_id'])):
+                            $lost_id = intval($c['supporting_lost_item_id']);
+                            $lost = $conn->query("SELECT item_name, description, colour, location, date_lost_found, created_at FROM items WHERE item_id = $lost_id")->fetch_assoc();
+                            if ($lost):
+                        ?>
+                            <div class="card mb-3" style="border: 2px solid #10B981; box-shadow: none;">
+                                <div class="card-body p-3">
+                                    <h6 class="fw-bold mb-2" style="color: #059669;">
+                                        <i class="bi bi-shield-check"></i> Supporting Evidence
+                                    </h6>
+                                    <p class="small mb-1"><strong>Claimant's own Lost Report:</strong> <?= htmlspecialchars($lost['item_name']) ?></p>
+                                    <p class="small mb-1"><strong>Reported on:</strong> <?= date('M d, Y', strtotime($lost['created_at'])) ?></p>
+                                    <p class="small mb-1"><strong>Colour:</strong> <?= htmlspecialchars($lost['colour'] ?: 'N/A') ?></p>
+                                    <p class="small mb-1"><strong>Location:</strong> <?= htmlspecialchars($lost['location'] ?: 'N/A') ?></p>
+                                    <p class="small mb-0"><strong>Description:</strong> <?= htmlspecialchars($lost['description']) ?></p>
+                                </div>
+                            </div>
+                        <?php endif; endif; ?>
+
+                        <form method="POST" class="mb-2">
+                            <input type="hidden" name="claim_id" value="<?= $c['claim_id'] ?>">
+                            <button type="submit" name="action" value="approve" class="btn btn-success btn-sm w-100">
+                                <i class="bi bi-check-circle"></i> Approve Claim
+                            </button>
+                        </form>
+
+                        <form method="POST">
+                            <input type="hidden" name="claim_id" value="<?= $c['claim_id'] ?>">
+                            <div class="mb-2">
+                                <label class="form-label small fw-bold">Reason for Rejection (required if rejecting):</label>
+                                <textarea name="admin_reason" class="form-control form-control-sm" rows="2" placeholder="e.g. The description does not match the item's details"></textarea>
+                            </div>
+                            <button type="submit" name="action" value="reject" class="btn btn-danger btn-sm w-100">
+                                <i class="bi bi-x-circle"></i> Reject Claim
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        <?php endwhile; ?>
+    </div>
+<?php endif; ?>
+
+<hr class="my-5">
+
+<h5 class="fw-bold mb-3">Recently Approved (QR Generated)</h5>
+<?php if ($approved->num_rows === 0): ?>
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center p-4">
+            <p class="text-muted mb-0">No approved claims yet. When you approve a claim, the QR code will appear here.</p>
+        </div>
+    </div>
+<?php else: ?>
+    <div class="table-responsive card border-0 shadow-sm">
+        <table class="table mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th>Claim ID</th>
+                    <th>Item</th>
+                    <th>Claimant</th>
+                    <th>QR Code</th>
+                    <th>Token</th>
+                    <th>Generated At</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php while ($a = $approved->fetch_assoc()): ?>
+                    <tr>
+                        <td><strong>#<?= $a['claim_id'] ?></strong></td>
+                        <td><?= htmlspecialchars($a['item_name']) ?></td>
+                        <td><?= htmlspecialchars($a['claimant']) ?></td>
+                        <td><img src="../qrcodes/claim_<?= $a['claim_id'] ?>.png" width="70" class="rounded"></td>
+                        <td><code><?= htmlspecialchars($a['qr_token']) ?></code></td>
+                        <td><?= $a['qr_generated_at'] ?></td>
+                    </tr>
+                <?php endwhile; ?>
+            </tbody>
+        </table>
+    </div>
+<?php endif; ?>
+
+<?php 
+require_once '../includes/admin_layout_bottom.php';
+require_once '../includes/footer.php'; 
+?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

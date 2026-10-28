@@ -9,44 +9,54 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 $search = trim($_GET['search'] ?? '');
-$filter_type = $_GET['type'] ?? 'all';
 $filter_category = $_GET['category'] ?? 'all';
-$filter_status = $_GET['status'] ?? 'lost';
 
-$sql = "SELECT i.*, u.full_name FROM items i JOIN users u ON i.user_id = u.user_id WHERE 1=1";
+$view_mode = $_GET['view'] ?? 'community'; 
+$personal_tab = $_GET['tab'] ?? 'lost'; 
+
+// --- COUNTS ---
+// Community Count: All lost items in the system
+$comm_lost_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'lost'")->fetch_assoc()['c'];
+
+// Personal Counts: Strictly filtered by the logged-in user
+$my_lost_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE user_id = $user_id AND status IN ('lost', 'pending_verification')")->fetch_assoc()['c'];
+$my_returned_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE user_id = $user_id AND status = 'returned'")->fetch_assoc()['c']; 
+
+// --- SQL QUERY BUILDER ---
 $params = [];
 $types = "";
 
-if ($filter_status === 'lost') {
-    $sql .= " AND (i.status = 'lost' OR (i.status = 'pending_verification' AND i.user_id = ?))";
-    $params[] = $user_id;
-    $types .= "i";
-} elseif ($filter_status === 'found') {
-    $sql .= " AND i.status = 'found'";
-} elseif ($filter_status === 'returned') {
-    $sql .= " AND i.status = 'returned'";
+if ($view_mode === 'community') {
+    // COMMUNITY FEED: Shows ALL lost items.
+    $sql = "SELECT i.*, u.full_name FROM items i JOIN users u ON i.user_id = u.user_id WHERE i.status = 'lost'";
 } else {
-    $sql .= " AND (i.status IN ('lost', 'found', 'returned') OR (i.status = 'pending_verification' AND i.user_id = ?))";
-    $params[] = $user_id;
+    // PERSONAL DASHBOARD: Strictly shows only this user's items
+    $sql = "SELECT i.*, u.full_name FROM items i JOIN users u ON i.user_id = u.user_id WHERE i.user_id = ?";
+    $params[] = $user_id; 
     $types .= "i";
+    
+    if ($personal_tab === 'lost') {
+        $sql .= " AND i.status IN ('lost', 'pending_verification')";
+    } elseif ($personal_tab === 'returned') {
+        $sql .= " AND i.status = 'returned'";
+    }
 }
 
+// Apply Search
 if (!empty($search)) {
     $sql .= " AND (i.item_name LIKE ? OR i.description LIKE ? OR i.location LIKE ?)";
     $like = "%$search%";
     $params[] = $like; $params[] = $like; $params[] = $like;
     $types .= "sss";
 }
-if ($filter_type === 'lost' || $filter_type === 'found') {
-    $sql .= " AND i.type = ?";
-    $params[] = $filter_type;
-    $types .= "s";
-}
+
+// Apply Category
 if ($filter_category !== 'all' && !empty($filter_category)) {
     $sql .= " AND i.category = ?";
     $params[] = $filter_category;
     $types .= "s";
 }
+
 $sql .= " ORDER BY i.created_at DESC";
 
 $stmt = $conn->prepare($sql);
@@ -56,79 +66,82 @@ if (!empty($params)) {
 $stmt->execute();
 $items = $stmt->get_result();
 
-$lost_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'lost'")->fetch_assoc()['c'];
-$pending_count = $conn->prepare("SELECT COUNT(*) as c FROM items WHERE status = 'pending_verification' AND user_id = ?");
-$pending_count->bind_param("i", $user_id);
-$pending_count->execute();
-$my_pending = $pending_count->get_result()->fetch_assoc()['c'];
-$pending_count->close();
-$lost_total = $lost_count + $my_pending;
-
-$found_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'found'")->fetch_assoc()['c'];
-$returned_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'returned'")->fetch_assoc()['c'];
-$all_count = $lost_total + $found_count + $returned_count;
-
-$page_title = 'Browse Items';
+$page_title = 'Directory';
 require_once '../includes/header.php';
 require_once '../includes/navbar.php';
 
-function tabUrl($status, $search, $type, $category) {
-    $url = "?status=$status";
+function buildUrl($view, $tab, $search, $category) {
+    $url = "?view=$view&tab=$tab";
     if (!empty($search)) $url .= "&search=" . urlencode($search);
-    if ($type !== 'all') $url .= "&type=$type";
     if ($category !== 'all') $url .= "&category=$category";
     return $url;
 }
 ?>
 
-<div class="container mt-5">
-    <div class="mb-4">
-        <h2 class="section-title">Browse Items</h2>
-        <p class="section-subtitle">Items transition through: <strong>Lost → Found → Returned</strong></p>
+<div class="container py-5" style="max-width: 1200px;">
+    
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-end mb-4">
+        <div>
+            <h1 class="section-title mb-1">Directory</h1>
+            <p class="section-subtitle mb-0">Browse community reports or manage your lost and returned items.</p>
+        </div>
+        <a href="report_item.php" class="btn btn-primary fw-bold px-4 py-2">
+            <i class="bi bi-plus-lg me-2"></i> Report New Item
+        </a>
     </div>
 
-    <ul class="nav nav-pills mb-4" style="gap: 10px; flex-wrap: wrap;">
-        <li class="nav-item">
-            <a class="nav-link" href="<?= tabUrl('lost', $search, $filter_type, $filter_category) ?>"
-               style="<?= $filter_status === 'lost' ? 'background: linear-gradient(135deg, #EF4444, #DC2626); color: white;' : 'background: white; color: #0F172A; border: 2px solid #E2E8F0;' ?>">
-                <i class="bi bi-exclamation-circle"></i> Lost (<?= $lost_total ?>)
+    <!-- Mode Switcher -->
+    <div class="text-center mb-5">
+        <div class="d-inline-flex p-1 rounded-pill shadow-sm" style="background: var(--white); border: 2px solid #E2E8F0;">
+            <a href="<?= buildUrl('community', 'lost', $search, $filter_category) ?>" 
+               class="btn rounded-pill px-4 fw-bold <?= $view_mode === 'community' ? 'text-white' : 'text-muted' ?>"
+               style="<?= $view_mode === 'community' ? 'background: var(--primary);' : '' ?>">
+                <i class="bi bi-globe me-2"></i> Community (<?= $comm_lost_count ?>)
             </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= tabUrl('found', $search, $filter_type, $filter_category) ?>"
-               style="<?= $filter_status === 'found' ? 'background: linear-gradient(135deg, #10B981, #059669); color: white;' : 'background: white; color: #0F172A; border: 2px solid #E2E8F0;' ?>">
-                <i class="bi bi-check-circle"></i> Found (<?= $found_count ?>)
+            <a href="<?= buildUrl('personal', 'lost', $search, $filter_category) ?>" 
+               class="btn rounded-pill px-4 fw-bold <?= $view_mode === 'personal' ? 'text-white' : 'text-muted' ?>"
+               style="<?= $view_mode === 'personal' ? 'background: var(--primary);' : '' ?>">
+                <i class="bi bi-person me-2"></i> My Dashboard
             </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= tabUrl('returned', $search, $filter_type, $filter_category) ?>"
-               style="<?= $filter_status === 'returned' ? 'background: linear-gradient(135deg, #1E40AF, #3B82F6); color: white;' : 'background: white; color: #0F172A; border: 2px solid #E2E8F0;' ?>">
-                <i class="bi bi-archive"></i> Returned (<?= $returned_count ?>)
-            </a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="<?= tabUrl('all', $search, $filter_type, $filter_category) ?>"
-               style="<?= $filter_status === 'all' ? 'background: linear-gradient(135deg, #0F172A, #1E293B); color: white;' : 'background: white; color: #0F172A; border: 2px solid #E2E8F0;' ?>">
-                <i class="bi bi-grid"></i> All (<?= $all_count ?>)
-            </a>
-        </li>
-    </ul>
+        </div>
+    </div>
 
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="GET" class="row g-3">
-                <input type="hidden" name="status" value="<?= htmlspecialchars($filter_status) ?>">
-                <div class="col-md-5">
-                    <input type="text" name="search" class="form-control" placeholder="Search by name, description, or location" value="<?= htmlspecialchars($search) ?>">
+    <!-- Sub-Tabs (Personal Mode only) -->
+    <?php if ($view_mode === 'personal'): ?>
+        <ul class="nav nav-pills justify-content-center mb-5 gap-2">
+            <li class="nav-item">
+                <a class="nav-link <?= $personal_tab === 'lost' ? 'active' : '' ?> fw-bold" 
+                   href="<?= buildUrl('personal', 'lost', $search, $filter_category) ?>"
+                   style="<?= $personal_tab === 'lost' ? 'background: var(--warning); color: var(--black);' : 'background: var(--white); color: var(--gray); border: 1px solid #E2E8F0;' ?>">
+                    My Lost Reports <?php if($my_lost_count > 0): ?><span class="badge bg-dark ms-1"><?= $my_lost_count ?></span><?php endif; ?>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?= $personal_tab === 'returned' ? 'active' : '' ?> fw-bold" 
+                   href="<?= buildUrl('personal', 'returned', $search, $filter_category) ?>"
+                   style="<?= $personal_tab === 'returned' ? 'background: var(--warning); color: var(--black);' : 'background: var(--white); color: var(--gray); border: 1px solid #E2E8F0;' ?>">
+                    My Returned Items <?php if($my_returned_count > 0): ?><span class="badge bg-dark ms-1"><?= $my_returned_count ?></span><?php endif; ?>
+                </a>
+            </li>
+        </ul>
+    <?php endif; ?>
+
+    <!-- Search Toolbar -->
+    <div class="card mb-5" style="box-shadow: var(--shadow-md);">
+        <div class="card-body p-3">
+            <form method="GET" class="row g-2 align-items-center m-0">
+                <input type="hidden" name="view" value="<?= htmlspecialchars($view_mode) ?>">
+                <input type="hidden" name="tab" value="<?= htmlspecialchars($personal_tab) ?>">
+                
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" name="search" class="form-control border-start-0 ps-0" placeholder="Search by name, description, or location..." value="<?= htmlspecialchars($search) ?>">
+                    </div>
                 </div>
-                <div class="col-md-3">
-                    <select name="type" class="form-select">
-                        <option value="all" <?= $filter_type === 'all' ? 'selected' : '' ?>>All Types</option>
-                        <option value="lost" <?= $filter_type === 'lost' ? 'selected' : '' ?>>Lost</option>
-                        <option value="found" <?= $filter_type === 'found' ? 'selected' : '' ?>>Found</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
+                
+                <div class="col-md-4">
                     <select name="category" class="form-select">
                         <option value="all">All Categories</option>
                         <?php foreach (['Phone','ID','Laptop','Wallet','Book','Other'] as $cat): ?>
@@ -136,131 +149,115 @@ function tabUrl($status, $search, $type, $category) {
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-1">
-                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i></button>
+                
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-dark w-100 fw-bold">Filter</button>
                 </div>
             </form>
         </div>
     </div>
 
+    <!-- Items Grid -->
     <div class="row g-4">
         <?php if ($items->num_rows === 0): ?>
             <div class="col-12">
-                <div class="card">
-                    <div class="card-body text-center p-5">
-                        <?php if ($filter_status === 'lost'): ?>
-                            <div class="feature-icon mx-auto mb-3" style="background: linear-gradient(135deg, #EF4444, #DC2626);">
-                                <i class="bi bi-emoji-smile"></i>
-                            </div>
-                            <h5 class="fw-bold">No lost items right now! 🎉</h5>
-                            <p class="text-muted mb-3">Nothing is currently missing. Either everyone is careful or no one has reported yet.</p>
-                            <a href="report_item.php?type=lost" class="btn btn-primary">
-                                <i class="bi bi-plus-circle"></i> Report a Lost Item
-                            </a>
-                        <?php elseif ($filter_status === 'found'): ?>
-                            <div class="feature-icon mx-auto mb-3" style="background: linear-gradient(135deg, #10B981, #059669);">
-                                <i class="bi bi-search"></i>
-                            </div>
-                            <h5 class="fw-bold">No found items yet</h5>
-                            <p class="text-muted mb-3">No one has marked an item as found. If you find something, be the hero and report it!</p>
-                            <a href="browse_items.php?status=lost" class="btn btn-primary">
-                                <i class="bi bi-exclamation-circle"></i> Check Lost Items
-                            </a>
-                        <?php elseif ($filter_status === 'returned'): ?>
-                            <div class="feature-icon mx-auto mb-3" style="background: linear-gradient(135deg, #1E40AF, #3B82F6);">
-                                <i class="bi bi-archive"></i>
-                            </div>
-                            <h5 class="fw-bold">No returned items yet</h5>
-                            <p class="text-muted mb-3">Items will appear here once they have been successfully returned to their owners.</p>
-                        <?php else: ?>
-                            <div class="feature-icon mx-auto mb-3">
-                                <i class="bi bi-search"></i>
-                            </div>
-                            <h5 class="fw-bold">No items match your search</h5>
-                            <p class="text-muted mb-3">Try adjusting your filters or searching for a different keyword.</p>
-                            <a href="browse_items.php" class="btn btn-outline-primary">
-                                <i class="bi bi-arrow-clockwise"></i> Clear All Filters
-                            </a>
-                        <?php endif; ?>
+                <div class="card text-center p-5">
+                    <div class="feature-icon mx-auto mb-3">
+                        <i class="bi bi-inbox"></i>
                     </div>
+                    <h5 class="fw-bold">No items found</h5>
+                    <p class="text-muted mb-4">
+                        <?= $view_mode === 'community' ? 'There are currently no lost items reported by the community.' : 'You have no items in this category.' ?>
+                    </p>
+                    <a href="report_item.php" class="btn btn-primary px-4" style="width: fit-content; margin: 0 auto;">Report an Item</a>
                 </div>
             </div>
         <?php else: ?>
             <?php while ($item = $items->fetch_assoc()): ?>
                 <?php
                 $is_pending = ($item['status'] === 'pending_verification');
-                $is_my_report = ($item['user_id'] == $user_id);
+                $is_my_report = ($item['user_id'] == $user_id); 
+                
+                // Set visual accents based on status
+                $accent_color = 'var(--danger)';
+                $icon_class = 'bi-exclamation-triangle';
+                $status_text = 'LOST';
+                $status_color = 'var(--danger)';
+                
+                if ($is_pending) {
+                    $accent_color = 'var(--warning)';
+                    $icon_class = 'bi-hourglass-split';
+                    $status_text = 'PENDING';
+                    $status_color = 'var(--warning)';
+                } elseif ($item['status'] === 'returned') {
+                    // CHANGED TO GREEN SUCCESS COLORS
+                    $accent_color = 'var(--success)';
+                    $icon_class = 'bi-trophy'; 
+                    $status_text = 'RETURNED';
+                    $status_color = 'var(--success)';
+                }
                 ?>
-                <div class="col-md-4">
-                    <div class="card h-100" <?= ($item['status'] === 'returned') ? 'style="opacity: 0.7;"' : '' ?>>
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100" style="border-left: 6px solid <?= $accent_color ?>;">
+                        
                         <?php if (!empty($item['image_path'])): ?>
-                            <img src="../<?= htmlspecialchars($item['image_path']) ?>" class="card-img-top" style="height:220px; object-fit:cover; <?= $item['status'] === 'returned' ? 'filter: grayscale(60%);' : '' ?>">
+                            <img src="../<?= htmlspecialchars($item['image_path']) ?>" style="height: 200px; object-fit: cover; width: 100%;">
                         <?php else: ?>
-                            <div style="height:220px; background: linear-gradient(135deg, <?php
-                                if ($item['status'] === 'returned') echo '#64748B, #475569';
-                                elseif ($is_pending) echo '#F59E0B, #D97706';
-                                elseif ($item['status'] === 'found') echo '#10B981, #059669';
-                                else echo '#EF4444, #DC2626';
-                            ?>); display: flex; align-items: center; justify-content: center;">
-                                <i class="bi bi-<?php
-                                    if ($item['status'] === 'returned') echo 'archive-fill';
-                                    elseif ($is_pending) echo 'hourglass-split';
-                                    elseif ($item['status'] === 'found') echo 'check-circle';
-                                    else echo 'exclamation-circle';
-                                ?>" style="font-size: 3rem; color: rgba(255,255,255,0.5);"></i>
+                            <!-- FIXED PLACEHOLDER: Soft background, trophy, and "Reunited" text -->
+                            <div style="height: 200px; background: <?= $accent_color ?>10; display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 1px solid #e2e8f0;">
+                                <i class="bi <?= $icon_class ?> mb-2" style="font-size: 3.5rem; color: <?= $accent_color ?>; opacity: 0.8;"></i>
+                                <?php if ($item['status'] === 'returned'): ?>
+                                    <span class="fw-bold" style="color: <?= $accent_color ?>; letter-spacing: 1px; font-size: 0.85rem;">REUNITED WITH OWNER</span>
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
-                        <div class="card-body">
-                            <div class="mb-2">
-                                <?php if ($is_pending): ?>
-                                    <span class="badge" style="background: linear-gradient(135deg, #F59E0B, #D97706); color: white;">
-                                        <i class="bi bi-hourglass-split"></i> Pending Verification
-                                    </span>
-                                <?php else: ?>
-                                    <span class="badge bg-<?php
-                                        if ($item['status'] === 'returned') echo 'primary';
-                                        elseif ($item['status'] === 'found') echo 'success';
-                                        else echo 'danger';
-                                    ?>">
-                                        <?= ucfirst($item['status']) ?>
-                                    </span>
-                                <?php endif; ?>
-                                <span class="badge bg-secondary"><?= htmlspecialchars($item['category']) ?></span>
+                        
+                        <div class="card-body d-flex flex-column">
+                            <div class="mb-3 d-flex gap-2">
+                                <span class="badge" style="background: <?= $status_color ?>; color: white;">
+                                    <?= $status_text ?>
+                                </span>
+                                <span class="badge bg-light text-dark border"><?= htmlspecialchars($item['category']) ?></span>
                             </div>
-                            <h5 class="fw-bold"><?= htmlspecialchars($item['item_name']) ?></h5>
-                            <p class="small text-muted mb-2">
-                                <strong>Colour:</strong> <?= htmlspecialchars($item['colour'] ?: 'N/A') ?><br>
-                                <strong>Location:</strong> <?= htmlspecialchars($item['location'] ?: 'N/A') ?><br>
-                                <strong>Date:</strong> <?= htmlspecialchars($item['date_lost_found'] ?: 'N/A') ?><br>
-                                <strong>Reported by:</strong> <?= htmlspecialchars($item['full_name']) ?>
-                            </p>
+                            
+                            <h5 class="fw-bold mb-2"><?= htmlspecialchars($item['item_name']) ?></h5>
+                            
+                            <div class="text-muted small mb-4 flex-grow-1">
+                                <div class="mb-1"><i class="bi bi-geo-alt me-2" style="color: var(--primary);"></i> <?= htmlspecialchars($item['location'] ?: 'Location not specified') ?></div>
+                                <div class="mb-1"><i class="bi bi-calendar-event me-2" style="color: var(--primary);"></i> <?= htmlspecialchars($item['date_lost_found'] ?: 'Date not specified') ?></div>
+                                <div><i class="bi bi-person me-2" style="color: var(--primary);"></i> By: <strong class="text-dark"><?= $is_my_report ? 'You' : htmlspecialchars($item['full_name']) ?></strong></div>
+                            </div>
 
-                            <?php if ($is_pending && $is_my_report): ?>
-                                <div class="alert alert-warning small mb-0 p-2">
-                                    <i class="bi bi-info-circle"></i>
-                                    Someone found your item! Awaiting admin verification at the Lost and Found Office.
-                                </div>
-
-                            <?php elseif ($item['status'] === 'returned'): ?>
-                                <button class="btn btn-secondary btn-sm w-100" disabled>
-                                    <i class="bi bi-archive"></i> Already Returned
-                                </button>
-
-                            <?php elseif ($item['status'] === 'lost'): ?>
+                            <!-- Actions -->
+                            <?php if ($view_mode === 'community'): ?>
                                 <?php if ($is_my_report): ?>
-                                    <button class="btn btn-outline-secondary btn-sm w-100" disabled>
-                                        <i class="bi bi-hourglass-split"></i> Your Lost Report
+                                    <button class="btn btn-outline-secondary w-100 fw-bold" disabled>
+                                        <i class="bi bi-person-check me-1"></i> Your Report
                                     </button>
                                 <?php else: ?>
-                                    <a href="mark_found.php?item_id=<?= $item['item_id'] ?>" class="btn btn-success btn-sm w-100">
-                                        <i class="bi bi-hand-thumbs-up"></i> I Found This Item
+                                    <a href="mark_found.php?item_id=<?= $item['item_id'] ?>" class="btn btn-success w-100 fw-bold">
+                                        <i class="bi bi-hand-thumbs-up me-1"></i> I Found This
                                     </a>
                                 <?php endif; ?>
-
-                            <?php elseif ($item['status'] === 'found'): ?>
-                                <a href="submit_claim.php?item_id=<?= $item['item_id'] ?>" class="btn btn-primary btn-sm w-100">
-                                    <i class="bi bi-hand-index"></i> Claim This Item
-                                </a>
+                                
+                            <?php elseif ($view_mode === 'personal'): ?>
+                                <?php if ($personal_tab === 'lost'): ?>
+                                    <?php if ($is_pending): ?>
+                                        <div class="alert alert-warning small mb-0 p-2 border-0 text-center fw-semibold">
+                                            <i class="bi bi-info-circle me-1"></i> Found by someone. Verifying.
+                                        </div>
+                                    <?php else: ?>
+                                        <button class="btn btn-light text-muted w-100 fw-bold border" disabled>
+                                            <i class="bi bi-hourglass-split me-1"></i> Searching
+                                        </button>
+                                    <?php endif; ?>
+                                    
+                                <?php elseif ($personal_tab === 'returned'): ?>
+                                    <!-- FIXED BUTTON: Solid Green -->
+                                    <button class="btn btn-success text-white w-100 fw-bold" disabled style="opacity: 0.9;">
+                                        <i class="bi bi-trophy me-1"></i> Successfully Returned
+                                    </button>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </div>
