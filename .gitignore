@@ -6,3 +6,5 @@ qrcodes/*
 Thumbs.db 
 .vscode/ 
 .idea/ 
+config/mailer.php
+assets/css/Untitled-1.js

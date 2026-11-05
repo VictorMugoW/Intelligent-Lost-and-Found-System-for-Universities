@@ -12,171 +12,160 @@ $message_type = '';
 
 // Handle Office Location Update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_office'])) {
-    $lat = $_POST['lat'];
-    $lng = $_POST['lng'];
-    $conn->query("UPDATE office_location SET latitude = $lat, longitude = $lng WHERE id = 1");
-    $message = "Office location updated!";
-    $message_type = "success";
+    $lat = floatval($_POST['lat']);
+    $lng = floatval($_POST['lng']);
+    $stmt = $conn->prepare("UPDATE office_location SET latitude = ?, longitude = ? WHERE id = 1");
+    $stmt->bind_param("dd", $lat, $lng);
+    if ($stmt->execute()) {
+        $message = "Office location updated!";
+        $message_type = "success";
+    }
+    $stmt->close();
 }
 
-// Handle Map Drag/Update for an EXISTING location
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_hotspot'])) {
-    $loc_id = intval($_POST['loc_id']);
-    $lat = $_POST['loc_lat'];
-    $lng = $_POST['loc_lng'];
+// Handle Map Drag/Update for an EXISTING or NEW location
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_hotspot'])) {
+    $name = trim($_POST['loc_name']);
+    $lat = floatval($_POST['loc_lat']);
+    $lng = floatval($_POST['loc_lng']);
     
-    $stmt = $conn->prepare("UPDATE campus_locations SET latitude = ?, longitude = ?, is_mapped = TRUE WHERE id = ?");
-    $stmt->bind_param("ddi", $lat, $lng, $loc_id);
+    // Check if it exists (case-insensitive)
+    $check = $conn->prepare("SELECT id FROM campus_locations WHERE LOWER(location_name) = LOWER(?)");
+    $check->bind_param("s", $name);
+    $check->execute();
+    $result = $check->get_result();
+    
+    if ($result->num_rows > 0) {
+        $row = $result->fetch_assoc();
+        $id = $row['id'];
+        $stmt = $conn->prepare("UPDATE campus_locations SET latitude = ?, longitude = ?, is_mapped = TRUE WHERE id = ?");
+        $stmt->bind_param("ddi", $lat, $lng, $id);
+    } else {
+        $stmt = $conn->prepare("INSERT INTO campus_locations (location_name, latitude, longitude, is_mapped, report_count) VALUES (?, ?, ?, TRUE, 0)");
+        $stmt->bind_param("sdd", $name, $lat, $lng);
+    }
     $stmt->execute();
     $stmt->close();
+    $check->close();
     
-    $message = "Hotspot mapped successfully!";
-    $message_type = "success";
-}
-
-// Handle Adding a BRAND NEW location manually
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_new_location'])) {
-    $name = $conn->real_escape_string($_POST['new_loc_name']);
-    $lat = $_POST['new_loc_lat'];
-    $lng = $_POST['new_loc_lng'];
-    
-    $check = $conn->query("SELECT id FROM campus_locations WHERE location_name = '$name'");
-    if ($check->num_rows > 0) {
-        $conn->query("UPDATE campus_locations SET latitude = $lat, longitude = $lng, is_mapped = TRUE WHERE location_name = '$name'");
-        $message = "Location '$name' updated and mapped!";
-    } else {
-        $conn->query("INSERT INTO campus_locations (location_name, latitude, longitude, is_mapped, report_count) VALUES ('$name', $lat, $lng, TRUE, 0)");
-        $message = "New location '$name' added to the map!";
-    }
+    $message = "Hotspot '$name' mapped successfully!";
     $message_type = "success";
 }
 
 // Fetch current data
 $office = $conn->query("SELECT * FROM office_location WHERE id = 1")->fetch_assoc();
-$unmapped = $conn->query("SELECT * FROM campus_locations WHERE is_mapped = FALSE ORDER BY report_count DESC");
-$mapped = $conn->query("SELECT * FROM campus_locations WHERE is_mapped = TRUE ORDER BY report_count DESC");
+$mapped = $conn->query("SELECT * FROM campus_locations WHERE is_mapped = TRUE ORDER BY location_name ASC");
 
-$page_title = 'Edit Campus Map';
+// Fetch Unmapped Suggestions (From Analytics)
+$unmapped_sql = "
+    SELECT TRIM(location) as location_name, COUNT(*) as report_count 
+    FROM items 
+    WHERE location IS NOT NULL AND TRIM(location) != '' 
+    AND LOWER(TRIM(location)) NOT IN (SELECT LOWER(location_name) FROM campus_locations WHERE is_mapped = TRUE)
+    GROUP BY LOWER(TRIM(location)) 
+    ORDER BY report_count DESC
+";
+$unmapped = $conn->query($unmapped_sql);
+
+$page_title = 'Manage Campus Map';
 require_once '../includes/header.php';
 require_once '../includes/navbar.php';
 ?>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-    #editorMap { height: 500px; width: 100%; border-radius: 14px; z-index: 1; }
+    /* Fix heights and borders */
+    .editor-row { border-radius: 1rem; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    #editorMap { height: 600px; width: 100%; z-index: 1; }
+    
+    /* Mutes the bright OSM colors */
+    .leaflet-tile-pane { filter: saturate(0.7) contrast(1.1) brightness(0.95); }
+
+    .sidebar-panel { background: #f8fafc; border-right: 1px solid #e2e8f0; height: 600px; overflow-y: auto; }
+    .loc-item { cursor: pointer; transition: all 0.2s; border-left: 4px solid transparent; }
+    .loc-item:hover { background: #e2e8f0; }
+    .loc-item.active { background: #dbeafe; border-left-color: #3b82f6; }
 </style>
 
-<div class="container mt-5 mb-5">
+<div class="container mt-4 mb-5">
     <div class="mb-4">
-        <h2 class="section-title">Manage Campus Map</h2>
-        <p class="section-subtitle">Set the office location and map out hotspots</p>
+        <h2 class="section-title">Map Configuration</h2>
+        <p class="section-subtitle">Map your campus buildings and set the office location</p>
     </div>
 
     <?php if ($message): ?>
-        <div class="alert alert-<?= $message_type ?>"><?= htmlspecialchars($message) ?></div>
+        <div class="alert alert-<?= $message_type ?> alert-dismissible fade show shadow-sm">
+            <?= htmlspecialchars($message) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
     <?php endif; ?>
 
-    <div class="row g-4">
-        <!-- Map Area -->
-        <div class="col-md-7">
-            <div class="card h-100">
-                <div class="card-body">
-                    <div id="editorMap"></div>
-                    <div class="mt-3 text-muted small">
-                        <i class="bi bi-info-circle"></i> Click anywhere on the map to get coordinates (Lat/Lng). Use the forms to the right to save them.
-                    </div>
+    <div class="row g-0 editor-row">
+        
+        <!-- LEFT SIDEBAR -->
+        <div class="col-md-4 sidebar-panel p-3">
+            
+            <!-- Office Section -->
+            <div class="card mb-3 border-0 shadow-sm" style="border-left: 4px solid var(--primary);">
+                <div class="card-body p-3">
+                    <h6 class="fw-bold text-primary mb-2"><i class="bi bi-building"></i> Office Location</h6>
+                    <p class="small text-muted mb-2">Click anywhere on the map to set the center, then click save.</p>
+                    <form method="POST" class="d-flex gap-2">
+                        <input type="hidden" name="update_office" value="1">
+                        <input type="hidden" name="lat" id="office_lat" value="<?= $office['latitude'] ?>">
+                        <input type="hidden" name="lng" id="office_lng" value="<?= $office['longitude'] ?>">
+                        <button type="submit" class="btn btn-outline-primary btn-sm w-100 fw-bold">Save Map Center as Office</button>
+                    </form>
                 </div>
+            </div>
+
+            <!-- Unmapped Suggestions -->
+            <h6 class="fw-bold mt-4 mb-2 text-dark"><i class="bi bi-stars text-warning"></i> Analytics Suggestions</h6>
+            <p class="small text-muted mb-2">Locations typed by users that need to be mapped. Click one to drop a pin.</p>
+            <div class="list-group mb-4 shadow-sm rounded" id="unmapped-list">
+                <?php if ($unmapped->num_rows === 0): ?>
+                    <div class="p-3 text-center text-muted small bg-white">All locations mapped! 🎉</div>
+                <?php else: ?>
+                    <?php while($u = $unmapped->fetch_assoc()): ?>
+                        <a href="#" class="list-group-item list-group-item-action loc-item d-flex justify-content-between align-items-center" 
+                           data-name="<?= htmlspecialchars($u['location_name']) ?>">
+                            <?= htmlspecialchars($u['location_name']) ?>
+                            <span class="badge bg-danger rounded-pill"><?= $u['report_count'] ?></span>
+                        </a>
+                    <?php endwhile; ?>
+                <?php endif; ?>
+            </div>
+
+            <!-- Mapped Locations -->
+            <h6 class="fw-bold mt-4 mb-2 text-dark"><i class="bi bi-check-circle text-success"></i> Mapped Hotspots</h6>
+            <div class="list-group mb-4 shadow-sm rounded">
+                <?php while($m = $mapped->fetch_assoc()): ?>
+                    <a href="#" class="list-group-item list-group-item-action loc-item-mapped" 
+                       data-lat="<?= $m['latitude'] ?>" data-lng="<?= $m['longitude'] ?>" data-name="<?= htmlspecialchars($m['location_name']) ?>">
+                        <i class="bi bi-geo-alt text-danger me-1"></i> <?= htmlspecialchars($m['location_name']) ?>
+                    </a>
+                <?php endwhile; ?>
             </div>
         </div>
 
-        <!-- Forms Area -->
-        <div class="col-md-5">
+        <!-- RIGHT MAP AREA -->
+        <div class="col-md-8 position-relative">
+            <div id="editorMap"></div>
             
-            <!-- Update Office Form -->
-            <div class="card mb-4 shadow-sm" style="border-left: 5px solid #1E40AF;">
-                <div class="card-header bg-primary text-white py-2">
-                    <h6 class="mb-0"><i class="bi bi-building"></i> Office Location</h6>
-                </div>
-                <div class="card-body py-3">
-                    <form method="POST">
-                        <input type="hidden" name="update_office" value="1">
-                        <div class="row g-2 mb-2">
-                            <div class="col-6">
-                                <label class="form-label small fw-bold">Latitude</label>
-                                <input type="text" name="lat" id="office_lat" class="form-control form-control-sm" value="<?= $office['latitude'] ?>" required>
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label small fw-bold">Longitude</label>
-                                <input type="text" name="lng" id="office_lng" class="form-control form-control-sm" value="<?= $office['longitude'] ?>" required>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-sm w-100">Save Office Location</button>
-                    </form>
-                </div>
+            <!-- Floating Save Form (Hidden by default) -->
+            <div id="save-pin-panel" class="position-absolute bg-white p-3 shadow-lg rounded" style="bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: none; min-width: 350px; border: 2px solid var(--primary);">
+                <form method="POST" class="d-flex align-items-center gap-2">
+                    <input type="hidden" name="save_hotspot" value="1">
+                    <input type="hidden" name="loc_name" id="save_loc_name">
+                    <input type="hidden" name="loc_lat" id="save_loc_lat">
+                    <input type="hidden" name="loc_lng" id="save_loc_lng">
+                    <div class="flex-grow-1">
+                        <span class="d-block fw-bold text-dark" id="save_loc_name_display">Location Name</span>
+                        <small class="text-muted" id="save_loc_coords">0.0000, 0.0000</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">Save Pin</button>
+                </form>
             </div>
-
-            <!-- Manually Add a New Location -->
-            <div class="card mb-4 shadow-sm" style="border-left: 5px solid #10B981;">
-                <div class="card-header bg-success text-white py-2">
-                    <h6 class="mb-0"><i class="bi bi-plus-circle"></i> Add Brand New Location</h6>
-                </div>
-                <div class="card-body py-3">
-                    <form method="POST">
-                        <input type="hidden" name="add_new_location" value="1">
-                        <div class="mb-2">
-                            <label class="form-label small fw-bold">Location Name</label>
-                            <input type="text" name="new_loc_name" class="form-control form-control-sm" placeholder="e.g. LT1, Library" required>
-                        </div>
-                        <div class="row g-2 mb-2">
-                            <div class="col-6">
-                                <label class="form-label small fw-bold">Latitude</label>
-                                <input type="text" name="new_loc_lat" id="new_loc_lat" class="form-control form-control-sm" required>
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label small fw-bold">Longitude</label>
-                                <input type="text" name="new_loc_lng" id="new_loc_lng" class="form-control form-control-sm" required>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-success btn-sm w-100">Save New Location</button>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Map Unmapped Locations -->
-            <div class="card shadow-sm" style="border-left: 5px solid #F59E0B;">
-                <div class="card-header bg-warning text-dark py-2">
-                    <h6 class="mb-0"><i class="bi bi-geo-alt"></i> Map Pending Locations</h6>
-                </div>
-                <div class="card-body py-3">
-                    <?php if ($unmapped->num_rows === 0): ?>
-                        <p class="text-muted small mb-0">All reported locations are mapped!</p>
-                    <?php else: ?>
-                        <form method="POST">
-                            <input type="hidden" name="update_hotspot" value="1">
-                            <div class="mb-2">
-                                <label class="form-label small fw-bold">Select Pending Location</label>
-                                <select name="loc_id" class="form-select form-select-sm" required>
-                                    <?php while($u = $unmapped->fetch_assoc()): ?>
-                                        <option value="<?= $u['id'] ?>"><?= $u['location_name'] ?> (<?= $u['report_count'] ?> reports)</option>
-                                    <?php endwhile; ?>
-                                </select>
-                            </div>
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <label class="form-label small fw-bold">Latitude</label>
-                                    <input type="text" name="loc_lat" id="loc_lat" class="form-control form-control-sm" required>
-                                </div>
-                                <div class="col-6">
-                                    <label class="form-label small fw-bold">Longitude</label>
-                                    <input type="text" name="loc_lng" id="loc_lng" class="form-control form-control-sm" required>
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-warning btn-sm w-100">Map Pending Location</button>
-                        </form>
-                    <?php endif; ?>
-                </div>
-            </div>
-
         </div>
     </div>
 </div>
@@ -184,43 +173,90 @@ require_once '../includes/navbar.php';
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const officeLat = <?= $office['latitude'] ?>;
-    const officeLng = <?= $office['longitude'] ?>;
+    const officeLat = <?= $office ? $office['latitude'] : -1.3102 ?>;
+    const officeLng = <?= $office ? $office['longitude'] : 36.8123 ?>;
     
-    const map = L.map('editorMap').setView([officeLat, officeLng], 16);
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Init Map with OpenStreetMap (No API key needed) - Zoom 15
+    const map = L.map('editorMap').setView([officeLat, officeLng], 15);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap'
     }).addTo(map);
 
-    // Draw mapped hotspots
-    <?php 
-    $mapped->data_seek(0);
-    while ($h = $mapped->fetch_assoc()): 
-    ?>
-        L.marker([<?= $h['latitude'] ?>, <?= $h['longitude'] ?>])
-            .addTo(map)
-            .bindPopup("<strong><?= $h['location_name'] ?></strong><br><?= $h['report_count'] ?> reports");
-    <?php endwhile; ?>
-
-    // Map click listener
-    map.on('click', function(e) {
-        const lat = e.latlng.lat.toFixed(6);
-        const lng = e.latlng.lng.toFixed(6);
-        
-        // Auto-fill ALL forms
-        document.getElementById('office_lat').value = lat;
-        document.getElementById('office_lng').value = lng;
-        document.getElementById('new_loc_lat').value = lat;
-        document.getElementById('new_loc_lng').value = lng;
-        document.getElementById('loc_lat').value = lat;
-        document.getElementById('loc_lng').value = lng;
-        
-        L.popup()
-            .setLatLng(e.latlng)
-            .setContent("Coordinates: " + lat + ", " + lng)
-            .openOn(map);
+    // Add Office Pin
+    const officeIcon = L.divIcon({
+        className: '',
+        html: '<div style="background: #1E40AF; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>',
+        iconSize: [24, 24], iconAnchor: [12, 12]
     });
+    L.marker([officeLat, officeLng], {icon: officeIcon}).addTo(map).bindPopup('Current Office');
+
+    let activeMarker = null;
+
+    // Handle clicking an unmapped suggestion
+    document.querySelectorAll('.loc-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            document.querySelectorAll('.loc-item').forEach(el => el.classList.remove('active'));
+            this.classList.add('active');
+
+            const name = this.getAttribute('data-name');
+            if (activeMarker) map.removeLayer(activeMarker);
+
+            const center = map.getCenter();
+            activeMarker = L.marker(center, {draggable: true}).addTo(map);
+            
+            const savePanel = document.getElementById('save-pin-panel');
+            savePanel.style.display = 'block';
+            document.getElementById('save_loc_name').value = name;
+            document.getElementById('save_loc_name_display').innerText = "Mapping: " + name;
+            
+            updateMarkerCoords(center.lat, center.lng);
+
+            activeMarker.on('dragend', function() {
+                const pos = activeMarker.getLatLng();
+                updateMarkerCoords(pos.lat, pos.lng);
+            });
+        });
+    });
+
+    // Handle clicking already mapped locations (Fly to them)
+    document.querySelectorAll('.loc-item-mapped').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            const lat = parseFloat(this.getAttribute('data-lat'));
+            const lng = parseFloat(this.getAttribute('data-lng'));
+            const name = this.getAttribute('data-name');
+            
+            map.flyTo([lat, lng], 17, { duration: 1.5 });
+            
+            if (activeMarker) map.removeLayer(activeMarker);
+            activeMarker = L.marker([lat, lng], {draggable: true}).addTo(map);
+            
+            const savePanel = document.getElementById('save-pin-panel');
+            savePanel.style.display = 'block';
+            document.getElementById('save_loc_name').value = name;
+            document.getElementById('save_loc_name_display').innerText = "Editing: " + name;
+            
+            updateMarkerCoords(lat, lng);
+
+            activeMarker.on('dragend', function() {
+                const pos = activeMarker.getLatLng();
+                updateMarkerCoords(pos.lat, pos.lng);
+            });
+        });
+    });
+
+    // Map click to set office
+    map.on('click', function(e) {
+        document.getElementById('office_lat').value = e.latlng.lat.toFixed(6);
+        document.getElementById('office_lng').value = e.latlng.lng.toFixed(6);
+    });
+
+    function updateMarkerCoords(lat, lng) {
+        document.getElementById('save_loc_lat').value = lat.toFixed(6);
+        document.getElementById('save_loc_lng').value = lng.toFixed(6);
+        document.getElementById('save_loc_coords').innerText = lat.toFixed(5) + ", " + lng.toFixed(5);
+    }
 });
 </script>
 
