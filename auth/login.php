@@ -1,7 +1,7 @@
 <?php
 session_start();
 require_once '../config/database.php';
-require_once '../config/mailer.php'; // This loads the sendEmail() function
+require_once '../config/mailer.php'; 
 
 // --- HANDLE CANCEL 2FA ---
 if (isset($_GET['cancel']) && $_GET['cancel'] == 1) {
@@ -68,46 +68,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $message = 'Please enter both email and password.';
         $message_type = 'danger';
     } else {
-        $stmt = $conn->prepare("SELECT user_id, full_name, email, password, role FROM users WHERE email = ?");
+        $stmt = $conn->prepare("SELECT user_id, full_name, email, password, role, status FROM users WHERE email = ?");
         $stmt->bind_param("s", $email);
         $stmt->execute();
         $result = $stmt->get_result();
 
         if ($result->num_rows === 1) {
             $user = $result->fetch_assoc();
-            if (password_verify($password, $user['password'])) {
+            
+            // 1. Check if suspended
+            if ($user['status'] === 'suspended') {
+                $message = 'Your account has been suspended. Please contact the Lost & Found office.';
+                $message_type = 'danger';
+            } 
+            // 2. Check password
+            elseif (password_verify($password, $user['password'])) {
                 
                 // --- 2FA LOGIC TRIGGERED ---
-                $otp = sprintf("%06d", mt_rand(1, 999999)); // Generate 6-digit OTP
-                $expires = date('Y-m-d H:i:s', strtotime('+10 minutes')); // 10 min expiry
+                $otp = sprintf("%06d", mt_rand(1, 999999)); 
+                $expires = date('Y-m-d H:i:s', strtotime('+10 minutes')); 
                 
-                // Save OTP to DB
                 $update = $conn->prepare("UPDATE users SET otp_code = ?, otp_expires_at = ? WHERE user_id = ?");
                 $update->bind_param("ssi", $otp, $expires, $user['user_id']);
                 $update->execute();
                 $update->close();
                 
-                // Store user ID temporarily in session
                 $_SESSION['2fa_user_id'] = $user['user_id'];
                 
-                // --- SEND EMAIL VIA PHPMAILER ---
                 $to = $user['email'];
                 $subject = "Your Login Verification Code";
                 $body = "Hello " . $user['full_name'] . ",\n\nYour 6-digit verification code is: " . $otp . "\n\nThis code expires in 10 minutes.";
                 
-                // Call the function from config/mailer.php
                 $email_sent = sendEmail($to, $subject, $body);
                 
                 if (!$email_sent) {
-                    $message = 'We could not send the email. Please check your connection or contact support.';
+                    $message = 'We could not send the email. Please check your connection.';
                     $message_type = 'warning';
-                    // Note: The OTP is still saved in the database, so you can test by checking phpMyAdmin
                 } else {
                     $message = 'We have emailed you a 6-digit verification code. Please check your inbox.';
                     $message_type = 'success';
                 }
                 
-                $step = 'verify'; // Switch view to OTP form
+                $step = 'verify'; 
                 
             } else {
                 $message = 'Invalid email or password.';
@@ -247,12 +249,13 @@ require_once '../includes/header.php';
                             <div class="mb-4">
                                 <div class="d-flex justify-content-between">
                                     <label class="form-label fw-semibold text-muted small">Password</label>
+                                    <!-- NEW: Forgot Password Link -->
+                                    <a href="forgot_password.php" class="text-decoration-none small fw-bold" style="color: var(--primary);">Forgot Password?</a>
                                 </div>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="bi bi-lock"></i></span>
                                     <input type="password" name="password" id="passwordInput" class="form-control" placeholder="Enter your password" required>
                                     
-                                    <!-- THE EYE TOGGLE -->
                                     <span class="input-group-text" style="cursor: pointer;" onclick="togglePassword()">
                                         <i class="bi bi-eye" id="eyeIcon"></i>
                                     </span>
@@ -277,7 +280,6 @@ require_once '../includes/header.php';
 </div>
 
 <script>
-// Password Visibility Toggle
 function togglePassword() {
     var input = document.getElementById('passwordInput');
     var icon = document.getElementById('eyeIcon');

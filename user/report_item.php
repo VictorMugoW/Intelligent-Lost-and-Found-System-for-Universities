@@ -17,13 +17,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $item_name = trim($_POST['item_name']);
     $category = trim($_POST['category']);
     $description = trim($_POST['description']);
+    $loss_context = trim($_POST['loss_context'] ?? ''); // NEW: Capture loss context
     $colour = trim($_POST['colour']);
     $location = trim($_POST['location']);
     $date_lost_found = $_POST['date_lost_found'];
     $type = 'lost'; 
 
-    if (empty($item_name) || empty($category) || empty($location)) {
-        $message = 'Please fill in all required fields including location.';
+    if (empty($item_name) || empty($category) || empty($location) || empty($colour) || empty($date_lost_found)) {
+        $message = 'Please fill in all required fields.';
         $message_type = 'danger';
     } else {
         // AUTO-MAP LOGIC
@@ -67,9 +68,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (empty($message)) {
-            $stmt = $conn->prepare("INSERT INTO items (user_id, item_name, category, description, colour, location, date_lost_found, image_path, type, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            // UPDATED: Added loss_context to the INSERT query and bind_param
+            $stmt = $conn->prepare("INSERT INTO items (user_id, item_name, category, description, loss_context, colour, location, date_lost_found, image_path, type, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $status = 'lost';
-            $stmt->bind_param("isssssssss", $user_id, $item_name, $category, $description, $colour, $location, $date_lost_found, $image_path, $type, $status);
+            $stmt->bind_param("issssssssss", $user_id, $item_name, $category, $description, $loss_context, $colour, $location, $date_lost_found, $image_path, $type, $status);
 
             if ($stmt->execute()) {
                 $new_item_id = $stmt->insert_id;
@@ -101,6 +103,16 @@ require_once '../includes/navbar.php';
     .category-btn:hover { border-color: #3B82F6; transform: translateY(-2px); }
     .category-btn.selected { border-color: #1E40AF; background: #EFF6FF; }
     .category-btn i { font-size: 2rem; color: #1E40AF; display: block; margin-bottom: 10px; }
+    
+    /* Highlight invalid fields */
+    .form-control.is-invalid, .form-select.is-invalid {
+        border-color: #dc3545;
+        padding-right: calc(1.5em + 0.75rem);
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right calc(0.375em + 0.1875rem) center;
+        background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+    }
 </style>
 
 <div class="container mt-5 mb-5">
@@ -163,7 +175,7 @@ require_once '../includes/navbar.php';
                             
                             <!-- STEP 1: Category -->
                             <div class="wizard-step active" id="step1">
-                                <h5 class="fw-bold mb-3">1. What type of item is it?</h5>
+                                <h5 class="fw-bold mb-3">1. What type of item is it? *</h5>
                                 <div class="row g-3">
                                     <?php 
                                     $cats = [
@@ -189,11 +201,11 @@ require_once '../includes/navbar.php';
                                 <h5 class="fw-bold mb-3">2. Item Details</h5>
                                 <div class="mb-3">
                                     <label class="form-label">What is the item's name? *</label>
-                                    <input type="text" name="item_name" class="form-control" placeholder="e.g. Samsung A32, Student ID" required>
+                                    <input type="text" name="item_name" id="item_name" class="form-control" placeholder="e.g. Samsung A32, Student ID" required>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">What colour is it?</label>
-                                    <input type="text" name="colour" class="form-control" placeholder="e.g. Black, Blue">
+                                    <label class="form-label">What colour is it? *</label>
+                                    <input type="text" name="colour" id="colour" class="form-control" placeholder="e.g. Black, Blue" required>
                                 </div>
                                 <div class="d-flex justify-content-between mt-4">
                                     <button type="button" class="btn btn-outline-secondary" onclick="prevStep(1)">Back</button>
@@ -206,11 +218,11 @@ require_once '../includes/navbar.php';
                                 <h5 class="fw-bold mb-3">3. Where and when?</h5>
                                 <div class="mb-3">
                                     <label class="form-label">Where did you lose it? *</label>
-                                    <input type="text" name="location" class="form-control" placeholder="e.g. Library, LT1, Cafeteria" required>
+                                    <input type="text" name="location" id="location" class="form-control" placeholder="e.g. Library, LT1, Cafeteria" required>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">When did you lose it?</label>
-                                    <input type="date" name="date_lost_found" class="form-control" value="<?= date('Y-m-d') ?>">
+                                    <label class="form-label">When did you lose it? *</label>
+                                    <input type="date" name="date_lost_found" id="date_lost_found" class="form-control" value="<?= date('Y-m-d') ?>" required>
                                 </div>
                                 <div class="d-flex justify-content-between mt-4">
                                     <button type="button" class="btn btn-outline-secondary" onclick="prevStep(2)">Back</button>
@@ -218,13 +230,21 @@ require_once '../includes/navbar.php';
                                 </div>
                             </div>
 
-                            <!-- STEP 4: Description & Image -->
+                            <!-- STEP 4: Description, Loss Context & Image -->
                             <div class="wizard-step" id="step4">
                                 <h5 class="fw-bold mb-3">4. Final Details</h5>
                                 <div class="mb-3">
                                     <label class="form-label">Description (Optional)</label>
-                                    <textarea name="description" class="form-control" rows="3" placeholder="Any distinguishing features like scratches, stickers, brand, etc."></textarea>
+                                    <textarea name="description" class="form-control" rows="2" placeholder="Any distinguishing features like scratches, stickers, brand, etc."></textarea>
                                 </div>
+
+                                <!-- NEW: LOSS CONTEXT FIELD -->
+                                <div class="mb-3">
+                                    <label class="form-label">How did you lose it? (Optional)</label>
+                                    <textarea name="loss_context" class="form-control" rows="2" placeholder="e.g. Fell out of my pocket, left it in the library..."></textarea>
+                                    <div class="form-text"><i class="bi bi-info-circle"></i> Your answer helps the university understand common loss patterns to improve campus awareness.</div>
+                                </div>
+
                                 <div class="mb-3">
                                     <label class="form-label">Upload an Image (Optional)</label>
                                     <input type="file" name="image" class="form-control" accept="image/*">
@@ -253,11 +273,34 @@ require_once '../includes/navbar.php';
         document.getElementById('progressBar').style.width = percent + '%';
     }
 
+    // Validates fields before moving forward
     function nextStep(step) {
-        document.getElementById('step' + currentStep).classList.remove('active');
-        currentStep = step;
-        document.getElementById('step' + currentStep).classList.add('active');
-        updateProgress();
+        const currentStepDiv = document.getElementById('step' + currentStep);
+        
+        // Find all inputs/selects/textareas inside the current step that are marked required
+        const requiredFields = currentStepDiv.querySelectorAll('input[required], select[required], textarea[required]');
+        
+        let isValid = true;
+
+        requiredFields.forEach(field => {
+            // Check if the field is empty
+            if (!field.value.trim()) {
+                isValid = false;
+                field.classList.add('is-invalid'); // Add red border
+            } else {
+                field.classList.remove('is-invalid'); // Remove red border if filled
+            }
+        });
+
+        if (isValid) {
+            // If everything is valid, move to the next step
+            currentStepDiv.classList.remove('active');
+            currentStep = step;
+            document.getElementById('step' + currentStep).classList.add('active');
+            updateProgress();
+        } else {
+            // If invalid, do nothing. The red borders will show the user what they missed.
+        }
     }
 
     function prevStep(step) {
@@ -277,6 +320,15 @@ require_once '../includes/navbar.php';
         // Enable Next button
         document.getElementById('btnNext1').disabled = false;
     }
+
+    // Remove the red error border as soon as the user starts typing
+    document.querySelectorAll('input, select, textarea').forEach(field => {
+        field.addEventListener('input', function() {
+            if (this.value.trim() !== '') {
+                this.classList.remove('is-invalid');
+            }
+        });
+    });
 
     // Initialize progress bar
     updateProgress();

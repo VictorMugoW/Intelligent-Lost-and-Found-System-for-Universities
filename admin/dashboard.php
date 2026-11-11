@@ -35,6 +35,10 @@ $pending_claims = $conn->query("SELECT COUNT(*) as c FROM claims WHERE status = 
 $returned_items = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'returned'")->fetch_assoc()['c'];
 $pending_verifications = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'pending_verification'")->fetch_assoc()['c'];
 
+// Fetch Loss Behavior Insights (Idea 3)
+$insights_sql = "SELECT item_name, location, loss_context FROM items WHERE loss_context IS NOT NULL AND loss_context != '' ORDER BY created_at DESC LIMIT 5";
+$insights_result = $conn->query($insights_sql);
+
 // Status styling
 $status_color = 'success';
 $status_text = 'Available Now';
@@ -200,7 +204,7 @@ require_once '../includes/admin_layout_top.php';
 
 <!-- Action Required Section -->
 <h5 class="fw-bold mb-3 text-dark"><i class="bi bi-exclamation-circle text-warning me-2"></i>Action Required</h5>
-<div class="row g-4">
+<div class="row g-4 mb-5">
     <div class="col-md-6">
         <a href="verify_found_items.php" class="card border-0 shadow-sm text-decoration-none h-100 action-card" style="border-left: 5px solid #F59E0B;">
             <div class="card-body d-flex align-items-center p-4">
@@ -239,6 +243,43 @@ require_once '../includes/admin_layout_top.php';
                 </div>
             </div>
         </a>
+    </div>
+</div>
+
+<!-- NEW: LOSS BEHAVIOR INSIGHTS (IDEA 3) -->
+<h5 class="fw-bold mb-3 text-dark"><i class="bi bi-lightbulb text-warning me-2"></i>Recent Loss Behavior Insights</h5>
+<div class="card border-0 shadow-sm mb-5" style="border-radius: 1rem;">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-4 py-3">Item</th>
+                        <th class="py-3">Location</th>
+                        <th class="py-3">How they lost it (Context)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    if ($insights_result && $insights_result->num_rows > 0):
+                        while($insight = $insights_result->fetch_assoc()):
+                    ?>
+                        <tr>
+                            <td class="ps-4 fw-bold text-dark align-middle"><?= htmlspecialchars($insight['item_name']) ?></td>
+                            <td class="align-middle"><span class="badge bg-secondary"><?= htmlspecialchars($insight['location']) ?></span></td>
+                            <td class="text-muted fst-italic align-middle">"<?= htmlspecialchars($insight['loss_context']) ?>"</td>
+                        </tr>
+                    <?php 
+                        endwhile; 
+                    else:
+                    ?>
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-4">No loss context data reported yet. Encourage users to fill out the optional field!</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 

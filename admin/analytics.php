@@ -4,11 +4,45 @@ ini_set('display_errors', 1);
 
 session_start();
 require_once '../config/database.php';
+require_once '../config/ai_helper.php'; // Added AI Helper
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header('Location: ../auth/login.php');
     exit;
 }
+
+// --- AI INSIGHT GENERATION LOGIC ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_ai'])) {
+    
+    // 1. Fetch Top 3 Hotspots
+    $h_res = $conn->query("SELECT location, COUNT(*) as c FROM items WHERE status = 'lost' GROUP BY location ORDER BY c DESC LIMIT 3");
+    $hotspot_str = "";
+    while($row = $h_res->fetch_assoc()) { $hotspot_str .= $row['location'] . " (" . $row['c'] . "), "; }
+    if(empty($hotspot_str)) $hotspot_str = "No hotspots recorded yet.";
+
+    // 2. Fetch recent Loss Contexts
+    $c_res = $conn->query("SELECT loss_context FROM items WHERE loss_context IS NOT NULL AND loss_context != '' ORDER BY created_at DESC LIMIT 10");
+    $context_str = "";
+    while($row = $c_res->fetch_assoc()) { $context_str .= "'" . $row['loss_context'] . "', "; }
+    if(empty($context_str)) $context_str = "No loss contexts recorded yet.";
+
+    // 3. Ask Ollama
+    $ai_summary = generateAISummary($hotspot_str, $context_str);
+
+    // 4. Save to Database (Caching)
+    $stmt = $conn->prepare("INSERT INTO ai_summaries (summary_text) VALUES (?)");
+    $stmt->bind_param("s", $ai_summary);
+    $stmt->execute();
+    $stmt->close();
+    
+    // Reload page to show the new summary instantly
+    header("Location: analytics.php");
+    exit;
+}
+
+// Fetch the latest saved AI summary to display
+$latest_ai = $conn->query("SELECT summary_text, created_at FROM ai_summaries ORDER BY created_at DESC LIMIT 1")->fetch_assoc();
+// --- END AI LOGIC ---
 
 // Stat cards
 $total_items = $conn->query("SELECT COUNT(*) as c FROM items")->fetch_assoc()['c'];
@@ -87,6 +121,46 @@ require_once '../includes/admin_layout_top.php';
         <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2 rounded-pill fw-bold">
             <i class="bi bi-circle-fill me-1" style="font-size: 0.5rem; vertical-align: middle;"></i> Live Data
         </span>
+    </div>
+</div>
+
+<!-- AI INSIGHTS WIDGET -->
+<div class="card border-0 shadow-sm mb-5" style="border-radius: 1rem; background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%); border-left: 6px solid var(--primary) !important;">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold mb-0" style="color: #0f172a;">
+                <i class="bi bi-robot text-primary me-2"></i> Intelligent AI Insights
+            </h5>
+            
+            <!-- UPDATED BUTTONS -->
+            <div class="d-flex gap-2">
+                <form method="POST" class="m-0">
+                    <button type="submit" name="generate_ai" class="btn btn-sm btn-primary fw-bold rounded-pill px-3">
+                        <i class="bi bi-stars me-1"></i> Generate New Insight
+                    </button>
+                </form>
+                
+                <?php if ($latest_ai): ?>
+                <a href="download_ai_report.php" class="btn btn-sm btn-dark fw-bold rounded-pill px-3">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> Download Report
+                </a>
+                <?php endif; ?>
+            </div>
+            
+        </div>
+        
+        <?php if ($latest_ai): ?>
+            <div class="bg-white p-4 rounded-3 border" style="font-size: 0.95rem; line-height: 1.8; color: #334155;">
+                <?= nl2br(htmlspecialchars($latest_ai['summary_text'])) ?>
+            </div>
+            <div class="text-muted mt-2" style="font-size: 0.75rem;">
+                <i class="bi bi-clock-history"></i> Generated on: <?= date('M d, Y \a\t g:i A', strtotime($latest_ai['created_at'])) ?> (Powered by Local Ollama)
+            </div>
+        <?php else: ?>
+            <div class="alert alert-info border-0 mb-0">
+                No AI insights generated yet. Click the button above to analyze your data!
+            </div>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -231,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     grid: { display: false },
                     ticks: { 
                         font: { size: 12, weight: '600' },
-                        maxRotation: 0, // Forces horizontal text
+                        maxRotation: 0, 
                         minRotation: 0
                     }
                 }
@@ -265,10 +339,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 x: { 
                     grid: { display: false },
                     ticks: { 
-                        font: { size: 11, weight: '600' }, // Slightly smaller font for long locations
-                        maxRotation: 0,  // FORCES TEXT TO BE HORIZONTAL (Fixes the zigzag!)
+                        font: { size: 11, weight: '600' }, 
+                        maxRotation: 0,  
                         minRotation: 0,
-                        autoSkip: false // Forces all 5 labels to show
+                        autoSkip: false 
                     }
                 }
             } 
@@ -287,7 +361,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 backgroundColor: 'rgba(16, 185, 129, 0.1)', 
                 borderWidth: 3, 
                 fill: true, 
-                tension: 0.4, // Smooth curved line
+                tension: 0.4, 
                 pointBackgroundColor: '#ffffff',
                 pointBorderColor: '#10B981',
                 pointBorderWidth: 2,

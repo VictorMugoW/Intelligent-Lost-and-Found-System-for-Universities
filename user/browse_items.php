@@ -12,25 +12,45 @@ $search = trim($_GET['search'] ?? '');
 $filter_category = $_GET['category'] ?? 'all';
 
 $view_mode = $_GET['view'] ?? 'community'; 
-$personal_tab = $_GET['tab'] ?? 'lost'; 
+$personal_tab = $_SESSION['tab'] ?? $_GET['tab'] ?? 'lost'; 
 
 // --- COUNTS ---
-// Community Count: All lost items in the system
 $comm_lost_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'lost'")->fetch_assoc()['c'];
-
-// Personal Counts: Strictly filtered by the logged-in user
 $my_lost_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE user_id = $user_id AND status IN ('lost', 'pending_verification')")->fetch_assoc()['c'];
 $my_returned_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE user_id = $user_id AND status = 'returned'")->fetch_assoc()['c']; 
+
+// --- 1. STANDARD CATEGORY ICONS ---
+$placeholders = [
+    'phone'  => ['icon' => 'bi-phone', 'bg' => '#e0f2fe', 'color' => '#0284c7'],
+    'id'     => ['icon' => 'bi-person-vcard', 'bg' => '#f3e8ff', 'color' => '#9333ea'],
+    'laptop' => ['icon' => 'bi-laptop', 'bg' => '#cffafe', 'color' => '#0891b2'],
+    'wallet' => ['icon' => 'bi-wallet2', 'bg' => '#dcfce7', 'color' => '#16a34a'],
+    'book'   => ['icon' => 'bi-book', 'bg' => '#fef3c7', 'color' => '#d97706'],
+    'unknown'=> ['icon' => 'bi-question-circle', 'bg' => '#f1f5f9', 'color' => '#64748b'] // The Fallback
+];
+
+// --- 2. SMART KEYWORD DICTIONARY (For "Other" items) ---
+// If the category is "Other", we scan the title for these words.
+$keyword_rules = [
+    'bottle'   => ['icon' => 'bi-cup-straw', 'bg' => '#ffedd5', 'color' => '#ea580c'],
+    'flask'    => ['icon' => 'bi-cup-straw', 'bg' => '#ffedd5', 'color' => '#ea580c'],
+    'hydro'    => ['icon' => 'bi-cup-straw', 'bg' => '#ffedd5', 'color' => '#ea580c'],
+    'umbrella' => ['icon' => 'bi-umbrella', 'bg' => '#dbeafe', 'color' => '#2563eb'],
+    'key'      => ['icon' => 'bi-key', 'bg' => '#fef9c3', 'color' => '#ca8a04'],
+    'keychain' => ['icon' => 'bi-key', 'bg' => '#fef9c3', 'color' => '#ca8a04'],
+    'charger'  => ['icon' => 'bi-plug', 'bg' => '#f3f4f6', 'color' => '#4b5563'],
+    'cable'    => ['icon' => 'bi-plug', 'bg' => '#f3f4f6', 'color' => '#4b5563'],
+    'glasses'  => ['icon' => 'bi-eyeglasses', 'bg' => '#fce7f3', 'color' => '#db2777'],
+    'specs'    => ['icon' => 'bi-eyeglasses', 'bg' => '#fce7f3', 'color' => '#db2777']
+];
 
 // --- SQL QUERY BUILDER ---
 $params = [];
 $types = "";
 
 if ($view_mode === 'community') {
-    // COMMUNITY FEED: Shows ALL lost items.
     $sql = "SELECT i.*, u.full_name FROM items i JOIN users u ON i.user_id = u.user_id WHERE i.status = 'lost'";
 } else {
-    // PERSONAL DASHBOARD: Strictly shows only this user's items
     $sql = "SELECT i.*, u.full_name FROM items i JOIN users u ON i.user_id = u.user_id WHERE i.user_id = ?";
     $params[] = $user_id; 
     $types .= "i";
@@ -42,7 +62,6 @@ if ($view_mode === 'community') {
     }
 }
 
-// Apply Search
 if (!empty($search)) {
     $sql .= " AND (i.item_name LIKE ? OR i.description LIKE ? OR i.location LIKE ?)";
     $like = "%$search%";
@@ -50,7 +69,6 @@ if (!empty($search)) {
     $types .= "sss";
 }
 
-// Apply Category
 if ($filter_category !== 'all' && !empty($filter_category)) {
     $sql .= " AND i.category = ?";
     $params[] = $filter_category;
@@ -78,13 +96,64 @@ function buildUrl($view, $tab, $search, $category) {
 }
 ?>
 
+<style>
+    .item-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 1rem;
+        background: #ffffff;
+        transition: all 0.25s ease;
+        overflow: hidden;
+    }
+    .item-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.08) !important;
+        border-color: #cbd5e1;
+    }
+    .item-img-wrapper {
+        height: 200px;
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-bottom: 1px solid #f1f5f9;
+        position: relative;
+        overflow: hidden;
+    }
+    .item-img-wrapper img.uploaded {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    /* Icon Placeholder Style */
+    .icon-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 5rem; 
+        transition: transform 0.3s ease;
+    }
+    .item-card:hover .icon-placeholder {
+        transform: scale(1.1);
+    }
+
+    .status-border {
+        position: absolute;
+        top: 0; left: 0; bottom: 0;
+        width: 6px;
+        z-index: 2;
+    }
+</style>
+
 <div class="container py-5" style="max-width: 1200px;">
     
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-end mb-4">
         <div>
             <h1 class="section-title mb-1">Directory</h1>
-            <p class="section-subtitle mb-0">Browse community reports or manage your lost and returned items.</p>
+            <p class="section-subtitle mb-0">Browse community reports or manage your items.</p>
         </div>
         <a href="report_item.php" class="btn btn-primary fw-bold px-4 py-2">
             <i class="bi bi-plus-lg me-2"></i> Report New Item
@@ -128,7 +197,7 @@ function buildUrl($view, $tab, $search, $category) {
     <?php endif; ?>
 
     <!-- Search Toolbar -->
-    <div class="card mb-5" style="box-shadow: var(--shadow-md);">
+    <div class="card mb-5" style="box-shadow: var(--shadow-md); border: none;">
         <div class="card-body p-3">
             <form method="GET" class="row g-2 align-items-center m-0">
                 <input type="hidden" name="view" value="<?= htmlspecialchars($view_mode) ?>">
@@ -162,9 +231,7 @@ function buildUrl($view, $tab, $search, $category) {
         <?php if ($items->num_rows === 0): ?>
             <div class="col-12">
                 <div class="card text-center p-5">
-                    <div class="feature-icon mx-auto mb-3">
-                        <i class="bi bi-inbox"></i>
-                    </div>
+                    <div class="feature-icon mx-auto mb-3"><i class="bi bi-inbox"></i></div>
                     <h5 class="fw-bold">No items found</h5>
                     <p class="text-muted mb-4">
                         <?= $view_mode === 'community' ? 'There are currently no lost items reported by the community.' : 'You have no items in this category.' ?>
@@ -178,64 +245,90 @@ function buildUrl($view, $tab, $search, $category) {
                 $is_pending = ($item['status'] === 'pending_verification');
                 $is_my_report = ($item['user_id'] == $user_id); 
                 
-                // Set visual accents based on status
                 $accent_color = 'var(--danger)';
-                $icon_class = 'bi-exclamation-triangle';
                 $status_text = 'LOST';
                 $status_color = 'var(--danger)';
                 
                 if ($is_pending) {
                     $accent_color = 'var(--warning)';
-                    $icon_class = 'bi-hourglass-split';
                     $status_text = 'PENDING';
                     $status_color = 'var(--warning)';
                 } elseif ($item['status'] === 'returned') {
-                    // CHANGED TO GREEN SUCCESS COLORS
                     $accent_color = 'var(--success)';
-                    $icon_class = 'bi-trophy'; 
                     $status_text = 'RETURNED';
                     $status_color = 'var(--success)';
                 }
+
+                // --- THE SMART ICON LOGIC ---
+                $cat_lower = strtolower($item['category']);
+                $item_name_lower = strtolower($item['item_name']);
+                
+                $icon_data = $placeholders['unknown']; // Default Fallback (Question Mark)
+                
+                // 1. Check if it's a standard category
+                if (isset($placeholders[$cat_lower])) {
+                    $icon_data = $placeholders[$cat_lower];
+                } 
+                
+                // 2. If it's "Other", scan the title for keywords
+                if ($cat_lower === 'other' || $cat_lower === '') {
+                    $keyword_matched = false;
+                    foreach ($keyword_rules as $keyword => $data) {
+                        if (strpos($item_name_lower, $keyword) !== false) {
+                            $icon_data = $data;
+                            $keyword_matched = true;
+                            break; // Stop searching once we find a match
+                        }
+                    }
+                    // If no keyword matched, it stays as the 'unknown' question mark
+                }
+
+                $has_upload = !empty($item['image_path']);
                 ?>
                 <div class="col-md-6 col-lg-4">
-                    <div class="card h-100" style="border-left: 6px solid <?= $accent_color ?>;">
+                    <div class="card h-100 item-card shadow-sm position-relative">
                         
-                        <?php if (!empty($item['image_path'])): ?>
-                            <img src="../<?= htmlspecialchars($item['image_path']) ?>" style="height: 200px; object-fit: cover; width: 100%;">
-                        <?php else: ?>
-                            <!-- FIXED PLACEHOLDER: Soft background, trophy, and "Reunited" text -->
-                            <div style="height: 200px; background: <?= $accent_color ?>10; display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 1px solid #e2e8f0;">
-                                <i class="bi <?= $icon_class ?> mb-2" style="font-size: 3.5rem; color: <?= $accent_color ?>; opacity: 0.8;"></i>
-                                <?php if ($item['status'] === 'returned'): ?>
-                                    <span class="fw-bold" style="color: <?= $accent_color ?>; letter-spacing: 1px; font-size: 0.85rem;">REUNITED WITH OWNER</span>
-                                <?php endif; ?>
-                            </div>
-                        <?php endif; ?>
+                        <div class="status-border" style="background: <?= $accent_color ?>;"></div>
+
+                        <!-- Image or Icon Area -->
+                        <div class="item-img-wrapper">
+                            <?php if ($has_upload): ?>
+                                <img src="../<?= htmlspecialchars($item['image_path']) ?>" class="uploaded" alt="<?= htmlspecialchars($item['item_name']) ?>">
+                            <?php else: ?>
+                                <!-- Beautiful Smart Icon Placeholder -->
+                                <div class="icon-placeholder" style="background-color: <?= $icon_data['bg'] ?>; color: <?= $icon_data['color'] ?>;">
+                                    <i class="bi <?= $icon_data['icon'] ?>"></i>
+                                </div>
+                            <?php endif; ?>
+                        </div>
                         
-                        <div class="card-body d-flex flex-column">
-                            <div class="mb-3 d-flex gap-2">
-                                <span class="badge" style="background: <?= $status_color ?>; color: white;">
+                        <!-- Card Body -->
+                        <div class="card-body d-flex flex-column p-4">
+                            <div class="mb-2 d-flex gap-2">
+                                <span class="badge rounded-pill" style="background: <?= $status_color ?>; color: white; padding: 0.5em 0.8em;">
                                     <?= $status_text ?>
                                 </span>
-                                <span class="badge bg-light text-dark border"><?= htmlspecialchars($item['category']) ?></span>
+                                <span class="badge rounded-pill bg-light text-dark border" style="padding: 0.5em 0.8em;">
+                                    <?= htmlspecialchars($item['category']) ?>
+                                </span>
                             </div>
                             
-                            <h5 class="fw-bold mb-2"><?= htmlspecialchars($item['item_name']) ?></h5>
+                            <h5 class="fw-bold mb-3 mt-1 text-dark"><?= htmlspecialchars($item['item_name']) ?></h5>
                             
-                            <div class="text-muted small mb-4 flex-grow-1">
-                                <div class="mb-1"><i class="bi bi-geo-alt me-2" style="color: var(--primary);"></i> <?= htmlspecialchars($item['location'] ?: 'Location not specified') ?></div>
-                                <div class="mb-1"><i class="bi bi-calendar-event me-2" style="color: var(--primary);"></i> <?= htmlspecialchars($item['date_lost_found'] ?: 'Date not specified') ?></div>
-                                <div><i class="bi bi-person me-2" style="color: var(--primary);"></i> By: <strong class="text-dark"><?= $is_my_report ? 'You' : htmlspecialchars($item['full_name']) ?></strong></div>
+                            <div class="text-muted small mb-4 flex-grow-1" style="line-height: 1.8;">
+                                <div class="text-truncate"><i class="bi bi-geo-alt-fill me-2" style="color: var(--primary);"></i> <?= htmlspecialchars($item['location'] ?: 'Location not specified') ?></div>
+                                <div><i class="bi bi-calendar-event-fill me-2" style="color: var(--primary);"></i> <?= htmlspecialchars($item['date_lost_found'] ?: 'Date not specified') ?></div>
+                                <div><i class="bi bi-person-fill me-2" style="color: var(--primary);"></i> By: <strong><?= $is_my_report ? 'You' : htmlspecialchars($item['full_name']) ?></strong></div>
                             </div>
 
                             <!-- Actions -->
                             <?php if ($view_mode === 'community'): ?>
                                 <?php if ($is_my_report): ?>
-                                    <button class="btn btn-outline-secondary w-100 fw-bold" disabled>
+                                    <button class="btn btn-outline-secondary w-100 fw-bold rounded-pill" disabled>
                                         <i class="bi bi-person-check me-1"></i> Your Report
                                     </button>
                                 <?php else: ?>
-                                    <a href="mark_found.php?item_id=<?= $item['item_id'] ?>" class="btn btn-success w-100 fw-bold">
+                                    <a href="mark_found.php?item_id=<?= $item['item_id'] ?>" class="btn btn-success w-100 fw-bold rounded-pill">
                                         <i class="bi bi-hand-thumbs-up me-1"></i> I Found This
                                     </a>
                                 <?php endif; ?>
@@ -243,18 +336,17 @@ function buildUrl($view, $tab, $search, $category) {
                             <?php elseif ($view_mode === 'personal'): ?>
                                 <?php if ($personal_tab === 'lost'): ?>
                                     <?php if ($is_pending): ?>
-                                        <div class="alert alert-warning small mb-0 p-2 border-0 text-center fw-semibold">
+                                        <div class="alert alert-warning small mb-0 p-2 border-0 text-center fw-semibold rounded-pill">
                                             <i class="bi bi-info-circle me-1"></i> Found by someone. Verifying.
                                         </div>
                                     <?php else: ?>
-                                        <button class="btn btn-light text-muted w-100 fw-bold border" disabled>
-                                            <i class="bi bi-hourglass-split me-1"></i> Searching
+                                        <button onclick="confirmResolve(<?= $item['item_id'] ?>)" class="btn btn-outline-success w-100 fw-bold rounded-pill">
+                                            <i class="bi bi-check-circle me-1"></i> I Found It Myself
                                         </button>
                                     <?php endif; ?>
                                     
                                 <?php elseif ($personal_tab === 'returned'): ?>
-                                    <!-- FIXED BUTTON: Solid Green -->
-                                    <button class="btn btn-success text-white w-100 fw-bold" disabled style="opacity: 0.9;">
+                                    <button class="btn btn-success text-white w-100 fw-bold rounded-pill" disabled style="opacity: 0.9;">
                                         <i class="bi bi-trophy me-1"></i> Successfully Returned
                                     </button>
                                 <?php endif; ?>
@@ -266,6 +358,14 @@ function buildUrl($view, $tab, $search, $category) {
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+function confirmResolve(itemId) {
+    if (confirm("Did you find this item yourself? \n\nIt will be marked as 'Returned' and removed from the community list.")) {
+        window.location.href = "mark_resolved.php?item_id=" + itemId;
+    }
+}
+</script>
 
 <?php require_once '../includes/footer.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
