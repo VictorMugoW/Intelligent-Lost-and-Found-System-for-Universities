@@ -26,6 +26,11 @@ $sidebar_pending_claims = $conn->query("SELECT COUNT(*) as c FROM claims WHERE s
         <i class="bi bi-clipboard-check"></i> Manage Claims
         <?php if($sidebar_pending_claims > 0): ?><span class="badge bg-danger ms-auto"><?= $sidebar_pending_claims ?></span><?php endif; ?>
     </a>
+    <!-- NEW LINK ADDED HERE -->
+    <a href="/intelligent-lost-and-found/admin/moderate_feed.php" class="sidebar-link <?= ($current_page == 'moderate_feed.php') ? 'active' : '' ?>">
+        <i class="bi bi-shield-x"></i> Moderate Feed
+    </a>
+    
     <a href="/intelligent-lost-and-found/admin/manage_users.php" class="sidebar-link <?= ($current_page == 'manage_users.php' || $current_page == 'user_details.php') ? 'active' : '' ?>">
         <i class="bi bi-people"></i> User Directory
     </a>

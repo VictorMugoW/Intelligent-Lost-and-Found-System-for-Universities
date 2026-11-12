@@ -27,7 +27,9 @@ $base = '/intelligent-lost-and-found';
                             <ul class="dropdown-menu shadow border-0">
                                 <li><a class="dropdown-item" href="<?= $base ?>/admin/verify_found_items.php"><i class="bi bi-shield-check text-warning me-2"></i> Verify Found Items</a></li>
                                 <li><a class="dropdown-item" href="<?= $base ?>/admin/manage_claims.php"><i class="bi bi-clipboard-check text-primary me-2"></i> Manage Claims</a></li>
-                                <li><a class="dropdown-item" href="<?= $base ?>/admin/manage_users.php"><i class="bi bi-people text-purple me-2" style="color:#8B5CF6;"></i> User Directory</a></li>
+                                <!-- NEW LINK ADDED HERE -->
+                                <li><a class="dropdown-item" href="<?= $base ?>/admin/moderate_feed.php"><i class="bi bi-shield-x text-danger me-2"></i> Moderate Feed</a></li>
+                                <li><a class="dropdown-item" href="<?= $base ?>/admin/manage_users.php"><i class="bi bi-people me-2" style="color:#8B5CF6;"></i> User Directory</a></li>
                             </ul>
                         </li>
 

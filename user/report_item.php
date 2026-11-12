@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $item_name = trim($_POST['item_name']);
     $category = trim($_POST['category']);
     $description = trim($_POST['description']);
-    $loss_context = trim($_POST['loss_context'] ?? ''); // NEW: Capture loss context
+    $loss_context = trim($_POST['loss_context'] ?? '');
     $colour = trim($_POST['colour']);
     $location = trim($_POST['location']);
     $date_lost_found = $_POST['date_lost_found'];
@@ -68,7 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (empty($message)) {
-            // UPDATED: Added loss_context to the INSERT query and bind_param
             $stmt = $conn->prepare("INSERT INTO items (user_id, item_name, category, description, loss_context, colour, location, date_lost_found, image_path, type, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $status = 'lost';
             $stmt->bind_param("issssssssss", $user_id, $item_name, $category, $description, $loss_context, $colour, $location, $date_lost_found, $image_path, $type, $status);
@@ -103,16 +102,7 @@ require_once '../includes/navbar.php';
     .category-btn:hover { border-color: #3B82F6; transform: translateY(-2px); }
     .category-btn.selected { border-color: #1E40AF; background: #EFF6FF; }
     .category-btn i { font-size: 2rem; color: #1E40AF; display: block; margin-bottom: 10px; }
-    
-    /* Highlight invalid fields */
-    .form-control.is-invalid, .form-select.is-invalid {
-        border-color: #dc3545;
-        padding-right: calc(1.5em + 0.75rem);
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
-        background-repeat: no-repeat;
-        background-position: right calc(0.375em + 0.1875rem) center;
-        background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
-    }
+    .form-control.is-invalid, .form-select.is-invalid { border-color: #dc3545; }
 </style>
 
 <div class="container mt-5 mb-5">
@@ -130,41 +120,44 @@ require_once '../includes/navbar.php';
                         <p class="text-muted mb-4"><?= htmlspecialchars($message) ?></p>
 
                         <?php if (!empty($matches)): ?>
-                            <div class="alert alert-info text-start">
+                            <div class="alert alert-info text-start border-0 shadow-sm" style="border-radius: 1rem;">
                                 <h5 class="fw-bold"><i class="bi bi-stars"></i> Match Found!</h5>
                                 <p class="small mb-3">We found <?= count($matches) ?> item(s) in the system that closely match your description.</p>
                                 <?php foreach ($matches as $match): ?>
                                     <div class="d-flex align-items-center bg-white p-3 rounded mb-2 border">
-                                        <div class="me-3">
-                                            <span class="badge bg-success" style="font-size: 1rem;"><?= $match['score'] ?>%</span>
-                                        </div>
+                                        <div class="me-3"><span class="badge bg-success" style="font-size: 1rem;"><?= $match['score'] ?>%</span></div>
                                         <div class="flex-grow-1">
                                             <strong><?= htmlspecialchars($match['item']['item_name']) ?></strong><br>
                                             <small class="text-muted"><?= htmlspecialchars($match['item']['location']) ?></small>
                                         </div>
-                                        <a href="submit_claim.php?item_id=<?= $match['item']['item_id'] ?>" class="btn btn-primary btn-sm">Claim</a>
+                                        <a href="submit_claim.php?item_id=<?= $match['item']['item_id'] ?>" class="btn btn-primary btn-sm rounded-pill px-3">Claim</a>
                                     </div>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
 
                         <div class="d-flex gap-2 justify-content-center mt-4">
-                            <a href="dashboard.php" class="btn btn-primary">Go to Dashboard</a>
-                            <a href="browse_items.php" class="btn btn-outline-primary">Browse Items</a>
+                            <a href="dashboard.php" class="btn btn-primary rounded-pill px-4">Go to Dashboard</a>
+                            <a href="browse_items.php" class="btn btn-outline-primary rounded-pill px-4">Browse Items</a>
                         </div>
                     </div>
                 </div>
             <?php else: ?>
                 <!-- WIZARD FORM -->
-                <div class="card shadow">
+                <div class="card shadow border-0" style="border-radius: 1rem;">
                     <div class="card-body p-4 p-md-5">
                         <div class="text-center mb-4">
-                            <h3 class="fw-bold">Report a Lost Item</h3>
+                            <h3 class="fw-bold text-danger"><i class="bi bi-exclamation-circle me-2"></i>Report a Lost Item</h3>
                             <p class="text-muted">Answer a few quick questions</p>
                         </div>
 
+                        <!-- TOAST TRIGGER -->
                         <?php if ($message): ?>
-                            <div class="alert alert-<?= $message_type ?>"><?= htmlspecialchars($message) ?></div>
+                            <script>
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    showToast("<?= htmlspecialchars(addslashes($message)) ?>", "<?= $message_type ?>");
+                                });
+                            </script>
                         <?php endif; ?>
 
                         <div class="progress-bar-custom">
@@ -173,14 +166,11 @@ require_once '../includes/navbar.php';
 
                         <form method="POST" enctype="multipart/form-data" id="wizardForm">
                             
-                            <!-- STEP 1: Category -->
                             <div class="wizard-step active" id="step1">
                                 <h5 class="fw-bold mb-3">1. What type of item is it? *</h5>
                                 <div class="row g-3">
                                     <?php 
-                                    $cats = [
-                                        'Phone' => 'phone', 'ID' => 'card-heading', 'Laptop' => 'laptop', 'Wallet' => 'wallet2', 'Book' => 'book', 'Other' => 'box'
-                                    ];
+                                    $cats = ['Phone' => 'phone', 'ID' => 'card-heading', 'Laptop' => 'laptop', 'Wallet' => 'wallet2', 'Book' => 'book', 'Other' => 'box'];
                                     foreach ($cats as $name => $icon): ?>
                                         <div class="col-4">
                                             <div class="category-btn" onclick="selectCategory('<?= $name ?>')" id="cat-<?= $name ?>">
@@ -192,67 +182,63 @@ require_once '../includes/navbar.php';
                                 </div>
                                 <input type="hidden" name="category" id="input_category" required>
                                 <div class="d-flex justify-content-end mt-4">
-                                    <button type="button" class="btn btn-primary" onclick="nextStep(2)" id="btnNext1" disabled>Next <i class="bi bi-arrow-right"></i></button>
+                                    <button type="button" class="btn btn-primary rounded-pill px-4" onclick="nextStep(2)" id="btnNext1" disabled>Next <i class="bi bi-arrow-right"></i></button>
                                 </div>
                             </div>
 
-                            <!-- STEP 2: Name & Colour -->
                             <div class="wizard-step" id="step2">
                                 <h5 class="fw-bold mb-3">2. Item Details</h5>
                                 <div class="mb-3">
-                                    <label class="form-label">What is the item's name? *</label>
+                                    <label class="form-label fw-bold text-muted small">What is the item's name? *</label>
                                     <input type="text" name="item_name" id="item_name" class="form-control" placeholder="e.g. Samsung A32, Student ID" required>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">What colour is it? *</label>
+                                    <label class="form-label fw-bold text-muted small">What colour is it? *</label>
                                     <input type="text" name="colour" id="colour" class="form-control" placeholder="e.g. Black, Blue" required>
                                 </div>
                                 <div class="d-flex justify-content-between mt-4">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="prevStep(1)">Back</button>
-                                    <button type="button" class="btn btn-primary" onclick="nextStep(3)">Next <i class="bi bi-arrow-right"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" onclick="prevStep(1)">Back</button>
+                                    <button type="button" class="btn btn-primary rounded-pill px-4" onclick="nextStep(3)">Next <i class="bi bi-arrow-right"></i></button>
                                 </div>
                             </div>
 
-                            <!-- STEP 3: Location & Date -->
                             <div class="wizard-step" id="step3">
                                 <h5 class="fw-bold mb-3">3. Where and when?</h5>
                                 <div class="mb-3">
-                                    <label class="form-label">Where did you lose it? *</label>
+                                    <label class="form-label fw-bold text-muted small">Where did you lose it? *</label>
                                     <input type="text" name="location" id="location" class="form-control" placeholder="e.g. Library, LT1, Cafeteria" required>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">When did you lose it? *</label>
+                                    <label class="form-label fw-bold text-muted small">When did you lose it? *</label>
                                     <input type="date" name="date_lost_found" id="date_lost_found" class="form-control" value="<?= date('Y-m-d') ?>" required>
                                 </div>
                                 <div class="d-flex justify-content-between mt-4">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="prevStep(2)">Back</button>
-                                    <button type="button" class="btn btn-primary" onclick="nextStep(4)">Next <i class="bi bi-arrow-right"></i></button>
+                                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" onclick="prevStep(2)">Back</button>
+                                    <button type="button" class="btn btn-primary rounded-pill px-4" onclick="nextStep(4)">Next <i class="bi bi-arrow-right"></i></button>
                                 </div>
                             </div>
 
-                            <!-- STEP 4: Description, Loss Context & Image -->
                             <div class="wizard-step" id="step4">
                                 <h5 class="fw-bold mb-3">4. Final Details</h5>
                                 <div class="mb-3">
-                                    <label class="form-label">Description (Optional)</label>
+                                    <label class="form-label fw-bold text-muted small">Description (Optional)</label>
                                     <textarea name="description" class="form-control" rows="2" placeholder="Any distinguishing features like scratches, stickers, brand, etc."></textarea>
                                 </div>
 
-                                <!-- NEW: LOSS CONTEXT FIELD -->
                                 <div class="mb-3">
-                                    <label class="form-label">How did you lose it? (Optional)</label>
+                                    <label class="form-label fw-bold text-muted small">How did you lose it? (Optional)</label>
                                     <textarea name="loss_context" class="form-control" rows="2" placeholder="e.g. Fell out of my pocket, left it in the library..."></textarea>
-                                    <div class="form-text"><i class="bi bi-info-circle"></i> Your answer helps the university understand common loss patterns to improve campus awareness.</div>
+                                    <div class="form-text"><i class="bi bi-info-circle"></i> Helps the university understand common loss patterns.</div>
                                 </div>
 
                                 <div class="mb-3">
-                                    <label class="form-label">Upload an Image (Optional)</label>
+                                    <label class="form-label fw-bold text-muted small">Upload an Image (Optional)</label>
                                     <input type="file" name="image" class="form-control" accept="image/*">
                                     <div class="form-text">Max 5MB. JPG, PNG, GIF.</div>
                                 </div>
                                 <div class="d-flex justify-content-between mt-4">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="prevStep(3)">Back</button>
-                                    <button type="submit" class="btn btn-success"><i class="bi bi-send"></i> Submit Report</button>
+                                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" onclick="prevStep(3)">Back</button>
+                                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold"><i class="bi bi-send me-1"></i> Submit Lost Report</button>
                                 </div>
                             </div>
 
@@ -273,33 +259,25 @@ require_once '../includes/navbar.php';
         document.getElementById('progressBar').style.width = percent + '%';
     }
 
-    // Validates fields before moving forward
     function nextStep(step) {
         const currentStepDiv = document.getElementById('step' + currentStep);
-        
-        // Find all inputs/selects/textareas inside the current step that are marked required
         const requiredFields = currentStepDiv.querySelectorAll('input[required], select[required], textarea[required]');
-        
         let isValid = true;
 
         requiredFields.forEach(field => {
-            // Check if the field is empty
             if (!field.value.trim()) {
                 isValid = false;
-                field.classList.add('is-invalid'); // Add red border
+                field.classList.add('is-invalid');
             } else {
-                field.classList.remove('is-invalid'); // Remove red border if filled
+                field.classList.remove('is-invalid');
             }
         });
 
         if (isValid) {
-            // If everything is valid, move to the next step
             currentStepDiv.classList.remove('active');
             currentStep = step;
             document.getElementById('step' + currentStep).classList.add('active');
             updateProgress();
-        } else {
-            // If invalid, do nothing. The red borders will show the user what they missed.
         }
     }
 
@@ -311,17 +289,12 @@ require_once '../includes/navbar.php';
     }
 
     function selectCategory(cat) {
-        // Remove selected class from all
         document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('selected'));
-        // Add selected class to clicked
         document.getElementById('cat-' + cat).classList.add('selected');
-        // Set hidden input value
         document.getElementById('input_category').value = cat;
-        // Enable Next button
         document.getElementById('btnNext1').disabled = false;
     }
 
-    // Remove the red error border as soon as the user starts typing
     document.querySelectorAll('input, select, textarea').forEach(field => {
         field.addEventListener('input', function() {
             if (this.value.trim() !== '') {
@@ -330,7 +303,6 @@ require_once '../includes/navbar.php';
         });
     });
 
-    // Initialize progress bar
     updateProgress();
 </script>
 

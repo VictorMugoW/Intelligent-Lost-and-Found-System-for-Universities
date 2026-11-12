@@ -165,6 +165,21 @@ require_once '../includes/navbar.php';
         <div class="col-md-7">
             <h4 class="fw-bold mb-3">Quick Actions</h4>
             <div class="row g-3">
+                
+                <!-- NEW: REPORT FOUND BUTTON -->
+                <div class="col-md-6">
+                    <a href="report_found_item.php" class="text-decoration-none">
+                        <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #10B981;">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #D1FAE5; color: #10B981; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;"><i class="bi bi-search"></i></div>
+                                    <div><h5 class="fw-bold mb-0 text-dark">Report Found Item</h5><p class="text-muted small mb-0">Found something? Log it here.</p></div>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+
                 <div class="col-md-6">
                     <a href="report_item.php" class="text-decoration-none">
                         <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #EF4444;">
@@ -177,37 +192,40 @@ require_once '../includes/navbar.php';
                         </div>
                     </a>
                 </div>
+                
                 <div class="col-md-6">
                     <a href="browse_items.php" class="text-decoration-none">
                         <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #3B82F6;">
                             <div class="card-body">
                                 <div class="d-flex align-items-center gap-3">
-                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #DBEAFE; color: #3B82F6; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;"><i class="bi bi-search"></i></div>
-                                    <div><h5 class="fw-bold mb-0 text-dark">Browse & Claim</h5><p class="text-muted small mb-0">Search found items.</p></div>
+                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #DBEAFE; color: #3B82F6; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;"><i class="bi bi-grid"></i></div>
+                                    <div><h5 class="fw-bold mb-0 text-dark">Browse & Claim</h5><p class="text-muted small mb-0">Search the community feed.</p></div>
                                 </div>
                             </div>
                         </div>
                     </a>
                 </div>
+
                 <div class="col-md-6">
                     <a href="my_claims.php" class="text-decoration-none">
-                        <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #10B981;">
+                        <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #8B5CF6;">
                             <div class="card-body">
                                 <div class="d-flex align-items-center gap-3">
-                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #D1FAE5; color: #10B981; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;"><i class="bi bi-tags"></i></div>
+                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #EDE9FE; color: #8B5CF6; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;"><i class="bi bi-tags"></i></div>
                                     <div><h5 class="fw-bold mb-0 text-dark">My Claims</h5><p class="text-muted small mb-0">Track claim status.</p></div>
                                 </div>
                             </div>
                         </div>
                     </a>
                 </div>
-                <div class="col-md-6">
+
+                <div class="col-md-12">
                     <a href="campus_map.php" class="text-decoration-none">
                         <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #F59E0B;">
                             <div class="card-body">
                                 <div class="d-flex align-items-center gap-3">
                                     <div style="width: 45px; height: 45px; border-radius: 10px; background: #FEF3C7; color: #F59E0B; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;"><i class="bi bi-map"></i></div>
-                                    <div><h5 class="fw-bold mb-0 text-dark">Campus Map</h5><p class="text-muted small mb-0">View hotspots.</p></div>
+                                    <div><h5 class="fw-bold mb-0 text-dark">Campus Map & Hotspots</h5><p class="text-muted small mb-0">View areas with high item loss.</p></div>
                                 </div>
                             </div>
                         </div>
@@ -258,7 +276,7 @@ require_once '../includes/navbar.php';
             <div class="chat-options" id="mainOptions">
                 <button class="chat-option" onclick="botShowStats()"><i class="bi bi-bar-chart"></i> Check System Stats</button>
                 <button class="chat-option" onclick="window.location.href='report_item.php'"><i class="bi bi-plus-circle"></i> Report a Lost Item</button>
-                <button class="chat-option" onclick="window.location.href='browse_items.php?status=found'"><i class="bi bi-search"></i> Browse Found Items</button>
+                <button class="chat-option" onclick="window.location.href='report_found_item.php'"><i class="bi bi-search"></i> Report a Found Item</button>
                 <button class="chat-option" onclick="window.location.href='campus_map.php'"><i class="bi bi-map"></i> View Campus Map</button>
             </div>
         </div>

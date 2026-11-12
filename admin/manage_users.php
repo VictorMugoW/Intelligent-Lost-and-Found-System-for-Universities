@@ -10,6 +10,15 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 $message = '';
 $message_type = '';
+
+if (isset($_GET['award_sent'])) {
+    $message = "Award email sent to the student successfully!";
+    $message_type = "success";
+} elseif (isset($_GET['award_error'])) {
+    $message = "Failed to send the award email. Please check your mail configuration.";
+    $message_type = "danger";
+}
+
 $search = trim($_GET['search'] ?? '');
 
 if (isset($_GET['toggle_status']) && isset($_GET['user_id'])) {
@@ -77,7 +86,6 @@ if (!empty($search)) {
     $search_sql = " AND (u.full_name LIKE '%$esc_search%' OR u.email LIKE '%$esc_search%' OR u.student_id LIKE '%$esc_search%' OR u.staff_id LIKE '%$esc_search%') ";
 }
 
-// UPDATED BADGE QUERY TO INCLUDE finder_id
 $student_query = "
     SELECT u.*, 
     (SELECT COUNT(*) FROM items i WHERE (i.user_id = u.user_id AND i.type = 'found' AND i.status = 'returned') OR (i.finder_id = u.user_id AND i.status IN ('found', 'returned'))) as return_count 
@@ -113,10 +121,12 @@ require_once '../includes/admin_layout_top.php';
 </div>
 
 <?php if ($message): ?>
-    <div class="alert alert-<?= $message_type ?> alert-dismissible fade show border-0 shadow-sm">
-        <?= htmlspecialchars($message) ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+    <!-- TOAST TRIGGER -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            showToast("<?= htmlspecialchars(addslashes($message)) ?>", "<?= $message_type ?>");
+        });
+    </script>
 <?php endif; ?>
 
 <div class="card border-0 shadow-sm mb-4" style="border-radius: 1rem;">
@@ -165,15 +175,26 @@ require_once '../includes/admin_layout_top.php';
                         </thead>
                         <tbody>
                             <?php if($students_result->num_rows === 0): ?>
-                                <tr><td colspan="4" class="text-center py-4 text-muted">No students found.</td></tr>
+                                <!-- CUSTOM EMPTY STATE -->
+                                <tr>
+                                    <td colspan="4" class="text-center py-5">
+                                        <div class="d-flex flex-column align-items-center justify-content-center">
+                                            <div class="mb-3" style="width: 80px; height: 80px; background: #f8fafc; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                                <i class="bi bi-search text-muted fs-1"></i>
+                                            </div>
+                                            <h6 class="fw-bold text-dark mb-1">No students found</h6>
+                                            <p class="text-muted small mb-0">Try adjusting your search terms or add a new student.</p>
+                                        </div>
+                                    </td>
+                                </tr>
                             <?php else: ?>
                                 <?php while($u = $students_result->fetch_assoc()): ?>
                                     <?php 
                                         $count = $u['return_count'];
                                         $admin_badge = null;
-                                        if ($count >= 7) $admin_badge = ['label' => 'Gold', 'icon' => 'bi-trophy-fill', 'class' => 'bg-warning text-dark'];
-                                        elseif ($count >= 4) $admin_badge = ['label' => 'Silver', 'icon' => 'bi-award-fill', 'class' => 'bg-secondary text-white'];
-                                        elseif ($count >= 2) $admin_badge = ['label' => 'Bronze', 'icon' => 'bi-shield-fill-check', 'class' => 'bg-danger text-white'];
+                                        if ($count >= 7) $admin_badge = ['label' => 'Gold', 'icon' => 'bi-trophy-fill', 'bg' => '#FEF3C7', 'text' => '#B45309', 'border' => '#F59E0B'];
+                                        elseif ($count >= 4) $admin_badge = ['label' => 'Silver', 'icon' => 'bi-award-fill', 'bg' => '#F1F5F9', 'text' => '#475569', 'border' => '#94A3B8'];
+                                        elseif ($count >= 2) $admin_badge = ['label' => 'Bronze', 'icon' => 'bi-shield-fill-check', 'bg' => '#FFF7ED', 'text' => '#9A3412', 'border' => '#EA580C'];
                                     ?>
                                     <tr class="align-middle">
                                         <td class="ps-4 fw-bold text-dark"><?= htmlspecialchars($u['full_name']) ?></td>
@@ -187,20 +208,24 @@ require_once '../includes/admin_layout_top.php';
                                             </span>
                                         </td>
                                         <td class="text-end pe-4">
-                                            <?php if ($admin_badge): ?>
-                                                <span class="badge <?= $admin_badge['class'] ?> me-2"><i class="bi <?= $admin_badge['icon'] ?>"></i> <?= $admin_badge['label'] ?> (<?= $count ?>)</span>
-                                                <a href="generate_certificate.php?user_id=<?= $u['user_id'] ?>" class="btn btn-sm btn-dark rounded-pill fw-bold me-2">
-                                                    <i class="bi bi-printer"></i> Certificate
-                                                </a>
-                                            <?php endif; ?>
+                                            <div class="d-flex justify-content-end align-items-center flex-wrap gap-2">
+                                                <?php if ($admin_badge): ?>
+                                                    <span class="badge py-2 px-3 border" style="background: <?= $admin_badge['bg'] ?>; color: <?= $admin_badge['text'] ?>; border-color: <?= $admin_badge['border'] ?> !important;">
+                                                        <i class="bi <?= $admin_badge['icon'] ?>"></i> <?= $admin_badge['label'] ?> (<?= $count ?>)
+                                                    </span>
+                                                    <a href="send_award.php?user_id=<?= $u['user_id'] ?>" class="btn btn-sm btn-dark rounded-pill fw-bold" onclick="return confirm('Send the <?= $admin_badge['label'] ?> award email to this user?');">
+                                                        <i class="bi bi-envelope-paper-fill"></i> Award
+                                                    </a>
+                                                <?php endif; ?>
 
-                                            <?php if ($u['user_id'] !== $_SESSION['user_id']): ?>
-                                                <a href="?toggle_status=<?= $u['status'] ?>&user_id=<?= $u['user_id'] ?>&search=<?= urlencode($search) ?>" 
-                                                   class="btn btn-sm btn-<?= $u['status'] === 'active' ? 'outline-danger' : 'outline-success' ?> rounded-pill fw-bold"
-                                                   onclick="return confirm('Are you sure?');">
-                                                    <?= $u['status'] === 'active' ? '<i class="bi bi-slash-circle"></i> Suspend' : '<i class="bi bi-check-circle"></i> Activate' ?>
-                                                </a>
-                                            <?php endif; ?>
+                                                <?php if ($u['user_id'] !== $_SESSION['user_id']): ?>
+                                                    <a href="?toggle_status=<?= $u['status'] ?>&user_id=<?= $u['user_id'] ?>&search=<?= urlencode($search) ?>" 
+                                                       class="btn btn-sm btn-<?= $u['status'] === 'active' ? 'outline-danger' : 'outline-success' ?> rounded-pill fw-bold"
+                                                       onclick="return confirm('Are you sure?');">
+                                                        <?= $u['status'] === 'active' ? '<i class="bi bi-slash-circle"></i> Suspend' : '<i class="bi bi-check-circle"></i> Activate' ?>
+                                                    </a>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endwhile; ?>
@@ -228,15 +253,26 @@ require_once '../includes/admin_layout_top.php';
                         </thead>
                         <tbody>
                             <?php if($staff_result->num_rows === 0): ?>
-                                <tr><td colspan="4" class="text-center py-4 text-muted">No staff members found.</td></tr>
+                                <!-- CUSTOM EMPTY STATE -->
+                                <tr>
+                                    <td colspan="4" class="text-center py-5">
+                                        <div class="d-flex flex-column align-items-center justify-content-center">
+                                            <div class="mb-3" style="width: 80px; height: 80px; background: #f8fafc; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                                <i class="bi bi-briefcase text-muted fs-1"></i>
+                                            </div>
+                                            <h6 class="fw-bold text-dark mb-1">No staff members found</h6>
+                                            <p class="text-muted small mb-0">Try adjusting your search terms or add a new staff member.</p>
+                                        </div>
+                                    </td>
+                                </tr>
                             <?php else: ?>
                                 <?php while($u = $staff_result->fetch_assoc()): ?>
                                     <?php 
                                         $count = $u['return_count'];
                                         $admin_badge = null;
-                                        if ($count >= 7) $admin_badge = ['label' => 'Gold', 'icon' => 'bi-trophy-fill', 'class' => 'bg-warning text-dark'];
-                                        elseif ($count >= 4) $admin_badge = ['label' => 'Silver', 'icon' => 'bi-award-fill', 'class' => 'bg-secondary text-white'];
-                                        elseif ($count >= 2) $admin_badge = ['label' => 'Bronze', 'icon' => 'bi-shield-fill-check', 'class' => 'bg-danger text-white'];
+                                        if ($count >= 7) $admin_badge = ['label' => 'Gold', 'icon' => 'bi-trophy-fill', 'bg' => '#FEF3C7', 'text' => '#B45309', 'border' => '#F59E0B'];
+                                        elseif ($count >= 4) $admin_badge = ['label' => 'Silver', 'icon' => 'bi-award-fill', 'bg' => '#F1F5F9', 'text' => '#475569', 'border' => '#94A3B8'];
+                                        elseif ($count >= 2) $admin_badge = ['label' => 'Bronze', 'icon' => 'bi-shield-fill-check', 'bg' => '#FFF7ED', 'text' => '#9A3412', 'border' => '#EA580C'];
                                     ?>
                                     <tr class="align-middle">
                                         <td class="ps-4 fw-bold text-dark"><?= htmlspecialchars($u['full_name']) ?></td>
@@ -250,20 +286,24 @@ require_once '../includes/admin_layout_top.php';
                                             </span>
                                         </td>
                                         <td class="text-end pe-4">
-                                            <?php if ($admin_badge): ?>
-                                                <span class="badge <?= $admin_badge['class'] ?> me-2"><i class="bi <?= $admin_badge['icon'] ?>"></i> <?= $admin_badge['label'] ?> (<?= $count ?>)</span>
-                                                <a href="generate_certificate.php?user_id=<?= $u['user_id'] ?>" class="btn btn-sm btn-dark rounded-pill fw-bold me-2">
-                                                    <i class="bi bi-printer"></i> Certificate
-                                                </a>
-                                            <?php endif; ?>
+                                            <div class="d-flex justify-content-end align-items-center flex-wrap gap-2">
+                                                <?php if ($admin_badge): ?>
+                                                    <span class="badge py-2 px-3 border" style="background: <?= $admin_badge['bg'] ?>; color: <?= $admin_badge['text'] ?>; border-color: <?= $admin_badge['border'] ?> !important;">
+                                                        <i class="bi <?= $admin_badge['icon'] ?>"></i> <?= $admin_badge['label'] ?> (<?= $count ?>)
+                                                    </span>
+                                                    <a href="send_award.php?user_id=<?= $u['user_id'] ?>" class="btn btn-sm btn-dark rounded-pill fw-bold" onclick="return confirm('Send the <?= $admin_badge['label'] ?> award email to this user?');">
+                                                        <i class="bi bi-envelope-paper-fill"></i> Award
+                                                    </a>
+                                                <?php endif; ?>
 
-                                            <?php if ($u['user_id'] !== $_SESSION['user_id']): ?>
-                                                <a href="?toggle_status=<?= $u['status'] ?>&user_id=<?= $u['user_id'] ?>&search=<?= urlencode($search) ?>" 
-                                                   class="btn btn-sm btn-<?= $u['status'] === 'active' ? 'outline-danger' : 'outline-success' ?> rounded-pill fw-bold"
-                                                   onclick="return confirm('Are you sure?');">
-                                                    <?= $u['status'] === 'active' ? '<i class="bi bi-slash-circle"></i> Suspend' : '<i class="bi bi-check-circle"></i> Activate' ?>
-                                                </a>
-                                            <?php endif; ?>
+                                                <?php if ($u['user_id'] !== $_SESSION['user_id']): ?>
+                                                    <a href="?toggle_status=<?= $u['status'] ?>&user_id=<?= $u['user_id'] ?>&search=<?= urlencode($search) ?>" 
+                                                       class="btn btn-sm btn-<?= $u['status'] === 'active' ? 'outline-danger' : 'outline-success' ?> rounded-pill fw-bold"
+                                                       onclick="return confirm('Are you sure?');">
+                                                        <?= $u['status'] === 'active' ? '<i class="bi bi-slash-circle"></i> Suspend' : '<i class="bi bi-check-circle"></i> Activate' ?>
+                                                    </a>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endwhile; ?>
@@ -274,7 +314,6 @@ require_once '../includes/admin_layout_top.php';
             </div>
         </div>
     </div>
-
 </div>
 
 <!-- Add User Modal -->

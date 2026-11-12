@@ -35,10 +35,6 @@ $pending_claims = $conn->query("SELECT COUNT(*) as c FROM claims WHERE status = 
 $returned_items = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'returned'")->fetch_assoc()['c'];
 $pending_verifications = $conn->query("SELECT COUNT(*) as c FROM items WHERE status = 'pending_verification'")->fetch_assoc()['c'];
 
-// Fetch Loss Behavior Insights (Idea 3)
-$insights_sql = "SELECT item_name, location, loss_context FROM items WHERE loss_context IS NOT NULL AND loss_context != '' ORDER BY created_at DESC LIMIT 5";
-$insights_result = $conn->query($insights_sql);
-
 // Status styling
 $status_color = 'success';
 $status_text = 'Available Now';
@@ -54,84 +50,29 @@ require_once '../includes/admin_layout_top.php';
 
 <!-- Custom CSS for the Dashboard Elements -->
 <style>
-    /* 1. Fix for the Invisible Stats Text */
     .stat-card-pro {
-        display: flex;
-        align-items: center;
-        padding: 1.5rem;
-        border-radius: 1rem;
-        color: #ffffff; 
+        display: flex; align-items: center; padding: 1.5rem; border-radius: 1rem; color: #ffffff; 
         box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-        transition: transform 0.2s ease;
-        position: relative;
-        overflow: hidden;
+        transition: transform 0.2s ease; position: relative; overflow: hidden;
     }
-    .stat-card-pro:hover {
-        transform: translateY(-5px);
-    }
+    .stat-card-pro:hover { transform: translateY(-5px); }
     .stat-card-pro::after {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 100%);
-        pointer-events: none;
+        content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 100%); pointer-events: none;
     }
     .stat-card-pro .icon-box {
-        width: 54px;
-        height: 54px;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 0.75rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.75rem;
-        margin-right: 1.25rem;
-        color: #ffffff;
+        width: 54px; height: 54px; background: rgba(255, 255, 255, 0.2); border-radius: 0.75rem;
+        display: flex; align-items: center; justify-content: center; font-size: 1.75rem; margin-right: 1.25rem; color: #ffffff;
     }
-    .stat-card-pro h6 {
-        color: rgba(255, 255, 255, 0.85) !important;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        font-size: 0.8rem;
-        margin-bottom: 0.25rem;
-    }
-    .stat-card-pro h3 {
-        color: #ffffff !important; 
-        font-weight: 800;
-        margin: 0;
-        font-size: 2rem;
-        line-height: 1;
-    }
-
-    /* 2. Office Status Card Polish */
-    .office-status-card {
-        border-radius: 1rem;
-        overflow: hidden;
-        position: relative;
-    }
+    .stat-card-pro h6 { color: rgba(255, 255, 255, 0.85) !important; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.8rem; margin-bottom: 0.25rem; }
+    .stat-card-pro h3 { color: #ffffff !important; font-weight: 800; margin: 0; font-size: 2rem; line-height: 1; }
+    .office-status-card { border-radius: 1rem; overflow: hidden; position: relative; }
     .office-status-icon {
-        width: 64px; 
-        height: 64px; 
-        border-radius: 50%; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
-        color: white; 
-        font-size: 2rem;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+        color: white; font-size: 2rem; box-shadow: 0 4px 10px rgba(0,0,0,0.15);
     }
-
-    /* 3. Action Required Cards Hover */
-    .action-card {
-        transition: all 0.25s ease;
-        border-radius: 1rem;
-        background: #fff;
-    }
-    .action-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 24px rgba(0,0,0,0.08) !important;
-    }
+    .action-card { transition: all 0.25s ease; border-radius: 1rem; background: #fff; }
+    .action-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.08) !important; }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -152,12 +93,10 @@ require_once '../includes/admin_layout_top.php';
 <?php endif; ?>
 
 <!-- Office Status Toggle -->
-<div class="card mb-5 border-0 shadow-sm office-status-card" style="border-left: 6px solid var(--bs-<?= $status_color ?>);">
+<div class="card mb-4 border-0 shadow-sm office-status-card" style="border-left: 6px solid var(--bs-<?= $status_color ?>);">
     <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3 p-4">
         <div class="d-flex align-items-center gap-3">
-            <div class="office-status-icon bg-<?= $status_color ?>">
-                <i class="bi bi-<?= $status_icon ?>"></i>
-            </div>
+            <div class="office-status-icon bg-<?= $status_color ?>"><i class="bi bi-<?= $status_icon ?>"></i></div>
             <div>
                 <h5 class="fw-bold mb-1" style="color: #0f172a;">Lost & Found Office: <span class="text-<?= $status_color ?>"><?= $status_text ?></span></h5>
                 <p class="text-muted mb-0 fw-medium"><i class="bi bi-clock me-1"></i> Operating Hours: <?= date('g:i A', strtotime($office['opening_time'])) ?> - <?= date('g:i A', strtotime($office['closing_time'])) ?></p>
@@ -172,6 +111,13 @@ require_once '../includes/admin_layout_top.php';
             <button type="submit" class="btn btn-dark fw-bold px-4" style="border-radius: 0.5rem;">Update</button>
         </form>
     </div>
+</div>
+
+<!-- NEW: QUICK ADMIN ACTIONS -->
+<div class="mb-4">
+    <a href="log_found_item.php" class="btn btn-success fw-bold px-4 py-2 rounded-pill shadow-sm">
+        <i class="bi bi-box-arrow-in-down me-2"></i> Log Walk-in Item (Guard Drop-off)
+    </a>
 </div>
 
 <!-- Stats Row -->
@@ -243,43 +189,6 @@ require_once '../includes/admin_layout_top.php';
                 </div>
             </div>
         </a>
-    </div>
-</div>
-
-<!-- NEW: LOSS BEHAVIOR INSIGHTS (IDEA 3) -->
-<h5 class="fw-bold mb-3 text-dark"><i class="bi bi-lightbulb text-warning me-2"></i>Recent Loss Behavior Insights</h5>
-<div class="card border-0 shadow-sm mb-5" style="border-radius: 1rem;">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="bg-light">
-                    <tr>
-                        <th class="ps-4 py-3">Item</th>
-                        <th class="py-3">Location</th>
-                        <th class="py-3">How they lost it (Context)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php
-                    if ($insights_result && $insights_result->num_rows > 0):
-                        while($insight = $insights_result->fetch_assoc()):
-                    ?>
-                        <tr>
-                            <td class="ps-4 fw-bold text-dark align-middle"><?= htmlspecialchars($insight['item_name']) ?></td>
-                            <td class="align-middle"><span class="badge bg-secondary"><?= htmlspecialchars($insight['location']) ?></span></td>
-                            <td class="text-muted fst-italic align-middle">"<?= htmlspecialchars($insight['loss_context']) ?>"</td>
-                        </tr>
-                    <?php 
-                        endwhile; 
-                    else:
-                    ?>
-                        <tr>
-                            <td colspan="3" class="text-center text-muted py-4">No loss context data reported yet. Encourage users to fill out the optional field!</td>
-                        </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
     </div>
 </div>
 

@@ -15,7 +15,8 @@ $view_mode = $_GET['view'] ?? 'community';
 $personal_tab = $_SESSION['tab'] ?? $_GET['tab'] ?? 'lost'; 
 
 // --- COUNTS ---
-$comm_lost_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE status IN ('lost', 'pending_verification')")->fetch_assoc()['c'];
+// Only count lost and pending for community
+$comm_items_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE status IN ('lost', 'pending_verification')")->fetch_assoc()['c'];
 $my_lost_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE user_id = $user_id AND status IN ('lost', 'pending_verification', 'found', 'pending_claim')")->fetch_assoc()['c'];
 $my_returned_count = $conn->query("SELECT COUNT(*) as c FROM items WHERE user_id = $user_id AND status = 'returned'")->fetch_assoc()['c']; 
 
@@ -47,8 +48,10 @@ $params = [];
 $types = "";
 
 if ($view_mode === 'community') {
+    // FIXED: ONLY show lost and pending_verification. 'found' is hidden until admin verifies.
     $sql = "SELECT i.*, u.full_name FROM items i JOIN users u ON i.user_id = u.user_id WHERE i.status IN ('lost', 'pending_verification')";
 } else {
+    // FIXED: Personal feed includes 'found' so the owner can claim it.
     $sql = "SELECT i.*, u.full_name FROM items i JOIN users u ON i.user_id = u.user_id WHERE i.user_id = ?";
     $params[] = $user_id; 
     $types .= "i";
@@ -111,12 +114,15 @@ function buildUrl($view, $tab, $search, $category) {
             <h1 class="section-title mb-1">Directory</h1>
             <p class="section-subtitle mb-0">Browse community reports or manage your items.</p>
         </div>
-        <a href="report_item.php" class="btn btn-primary fw-bold px-4 py-2"><i class="bi bi-plus-lg me-2"></i> Report New Item</a>
+        <div class="d-flex gap-2">
+            <a href="report_item.php" class="btn btn-primary fw-bold px-4 py-2"><i class="bi bi-exclamation-circle me-2"></i> Report Lost</a>
+            <a href="report_found_item.php" class="btn btn-success fw-bold px-4 py-2"><i class="bi bi-search me-2"></i> Report Found</a>
+        </div>
     </div>
 
     <div class="text-center mb-5">
         <div class="d-inline-flex p-1 rounded-pill shadow-sm" style="background: var(--white); border: 2px solid #E2E8F0;">
-            <a href="<?= buildUrl('community', 'lost', $search, $filter_category) ?>" class="btn rounded-pill px-4 fw-bold <?= $view_mode === 'community' ? 'text-white' : 'text-muted' ?>" style="<?= $view_mode === 'community' ? 'background: var(--primary);' : '' ?>"><i class="bi bi-globe me-2"></i> Community (<?= $comm_lost_count ?>)</a>
+            <a href="<?= buildUrl('community', 'lost', $search, $filter_category) ?>" class="btn rounded-pill px-4 fw-bold <?= $view_mode === 'community' ? 'text-white' : 'text-muted' ?>" style="<?= $view_mode === 'community' ? 'background: var(--primary);' : '' ?>"><i class="bi bi-globe me-2"></i> Community (<?= $comm_items_count ?>)</a>
             <a href="<?= buildUrl('personal', 'lost', $search, $filter_category) ?>" class="btn rounded-pill px-4 fw-bold <?= $view_mode === 'personal' ? 'text-white' : 'text-muted' ?>" style="<?= $view_mode === 'personal' ? 'background: var(--primary);' : '' ?>"><i class="bi bi-person me-2"></i> My Dashboard</a>
         </div>
     </div>
@@ -166,8 +172,7 @@ function buildUrl($view, $tab, $search, $category) {
                 <div class="card text-center p-5">
                     <div class="feature-icon mx-auto mb-3"><i class="bi bi-inbox"></i></div>
                     <h5 class="fw-bold">No items found</h5>
-                    <p class="text-muted mb-4"><?= $view_mode === 'community' ? 'There are currently no lost items reported by the community.' : 'You have no items in this category.' ?></p>
-                    <a href="report_item.php" class="btn btn-primary px-4" style="width: fit-content; margin: 0 auto;">Report an Item</a>
+                    <p class="text-muted mb-4"><?= $view_mode === 'community' ? 'There are currently no active reports in the community feed.' : 'You have no items in this category.' ?></p>
                 </div>
             </div>
         <?php else: ?>
@@ -196,7 +201,6 @@ function buildUrl($view, $tab, $search, $category) {
                     $accent_color = 'var(--success)';
                     $status_color = 'var(--success)';
                     
-                    // THE FIX: If finder_id is empty, it means they found it themselves
                     if (empty($item['finder_id'])) {
                         $status_text = 'FOUND BY ME';
                     } else {
@@ -264,15 +268,10 @@ function buildUrl($view, $tab, $search, $category) {
                                         <button class="btn btn-warning text-dark w-100 fw-bold rounded-pill" disabled><i class="bi bi-hourglass-split me-1"></i> Claim Pending Approval</button>
                                     <?php endif; ?>
                                 <?php elseif ($personal_tab === 'returned'): ?>
-                                    <!-- THE FIX: Check if finder_id is empty -->
                                     <?php if (empty($item['finder_id'])): ?>
-                                        <button class="btn btn-success w-100 fw-bold rounded-pill" disabled style="opacity: 0.9;">
-                                            <i class="bi bi-person-check me-1"></i> Found by Me
-                                        </button>
+                                        <button class="btn btn-success w-100 fw-bold rounded-pill" disabled style="opacity: 0.9;"><i class="bi bi-person-check me-1"></i> Found by Me</button>
                                     <?php else: ?>
-                                        <button class="btn btn-success w-100 fw-bold rounded-pill" disabled style="opacity: 0.9;">
-                                            <i class="bi bi-trophy me-1"></i> Successfully Returned
-                                        </button>
+                                        <button class="btn btn-success w-100 fw-bold rounded-pill" disabled style="opacity: 0.9;"><i class="bi bi-trophy me-1"></i> Successfully Returned</button>
                                     <?php endif; ?>
                                 <?php endif; ?>
                             <?php endif; ?>
