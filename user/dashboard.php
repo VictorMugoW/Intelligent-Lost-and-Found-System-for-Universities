@@ -11,6 +11,27 @@ $user_id = $_SESSION['user_id'];
 $full_name = $_SESSION['full_name'];
 $role = $_SESSION['role'];
 
+// --- UPDATED BADGE LOGIC ---
+$badge_stmt = $conn->prepare("
+    SELECT COUNT(*) as returns FROM items 
+    WHERE (user_id = ? AND type = 'found' AND status = 'returned') 
+    OR (finder_id = ? AND status IN ('found', 'returned'))
+");
+$badge_stmt->bind_param("ii", $user_id, $user_id);
+$badge_stmt->execute();
+$return_count = $badge_stmt->get_result()->fetch_assoc()['returns'];
+$badge_stmt->close();
+
+$user_badge = null;
+if ($return_count >= 7) {
+    $user_badge = ['label' => 'Gold Guardian', 'icon' => 'bi-trophy-fill', 'bg' => '#FEF3C7', 'text' => '#B45309', 'border' => '#F59E0B'];
+} elseif ($return_count >= 4) {
+    $user_badge = ['label' => 'Silver Sentry', 'icon' => 'bi-award-fill', 'bg' => '#F1F5F9', 'text' => '#475569', 'border' => '#94A3B8'];
+} elseif ($return_count >= 2) {
+    $user_badge = ['label' => 'Bronze Benefactor', 'icon' => 'bi-shield-fill-check', 'bg' => '#FFF7ED', 'text' => '#9A3412', 'border' => '#EA580C'];
+}
+// --- END BADGE LOGIC ---
+
 // Fetch current office status
 $office = $conn->query("SELECT status, opening_time, closing_time FROM office_settings WHERE id = 1")->fetch_assoc();
 if (!$office) {
@@ -61,7 +82,6 @@ require_once '../includes/navbar.php';
 ?>
 
 <style>
-    /* Chatbot CSS */
     .chat-widget { position: fixed; bottom: 20px; right: 20px; z-index: 9999; }
     @keyframes floatUpDown { 0% { transform: translateY(0); } 50% { transform: translateY(-8px); } 100% { transform: translateY(0); } }
     .chat-button { width: 60px; height: 60px; border-radius: 50%; background: #0F172A; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; cursor: pointer; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.4); transition: transform 0.2s; animation: floatUpDown 3s ease-in-out infinite; border: 2px solid #3B82F6; }
@@ -75,133 +95,73 @@ require_once '../includes/navbar.php';
     .chat-options { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
     .chat-option { background: white; border: 2px solid #3B82F6; color: #1E40AF; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: left; }
     .chat-option:hover { background: #EFF6FF; }
-
-    /* Professional Dashboard CSS */
-    .welcome-card {
-        background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
-        color: white;
-        border-radius: 16px;
-        padding: 2rem;
-        margin-bottom: 2rem;
-        position: relative;
-        overflow: hidden;
-        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.2);
-    }
-    .welcome-card::after {
-        content: '\F4E4';
-        font-family: 'bootstrap-icons';
-        position: absolute;
-        right: -20px;
-        bottom: -20px;
-        font-size: 10rem;
-        opacity: 0.1;
-        transform: rotate(-15deg);
-    }
+    .welcome-card { background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%); color: white; border-radius: 16px; padding: 2rem; margin-bottom: 2rem; position: relative; overflow: hidden; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.2); }
+    .welcome-card::after { content: '\F4E4'; font-family: 'bootstrap-icons'; position: absolute; right: -20px; bottom: -20px; font-size: 10rem; opacity: 0.1; transform: rotate(-15deg); }
     .welcome-card h2 { color: white; font-weight: 800; margin-bottom: 0.5rem; }
     .welcome-card p { color: rgba(255,255,255,0.8); margin: 0; font-size: 1.1rem; }
-    
-    .stat-card-pro {
-        border-radius: 16px;
-        padding: 1.5rem;
-        color: white;
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        transition: transform 0.2s;
-    }
+    .stat-card-pro { border-radius: 16px; padding: 1.5rem; color: white; display: flex; align-items: center; gap: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: transform 0.2s; }
     .stat-card-pro:hover { transform: translateY(-3px); }
-    .stat-card-pro .icon-box {
-        width: 50px; height: 50px; border-radius: 12px;
-        background: rgba(255,255,255,0.2);
-        display: flex; align-items: center; justify-content: center;
-        font-size: 1.5rem;
-    }
+    .stat-card-pro .icon-box { width: 50px; height: 50px; border-radius: 12px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
     .stat-card-pro h6 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.9; margin: 0; color: white; }
     .stat-card-pro h3 { font-size: 1.8rem; font-weight: 800; margin: 0; line-height: 1; color: white; }
-    
-    .activity-item {
-        display: flex;
-        align-items: center;
-        padding: 1rem;
-        border-bottom: 1px solid #E2E8F0;
-        transition: background 0.2s;
-    }
+    .activity-item { display: flex; align-items: center; padding: 1rem; border-bottom: 1px solid #E2E8F0; transition: background 0.2s; }
     .activity-item:hover { background: #F8FAFC; }
-    .activity-icon {
-        width: 40px; height: 40px; border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-        margin-right: 1rem; font-size: 1.2rem;
-    }
+    .activity-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 1rem; font-size: 1.2rem; }
 </style>
 
 <div class="container mt-5">
-    
-    <!-- Personalized Welcome Banner -->
     <div class="welcome-card d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div style="position: relative; z-index: 2;">
             <h2>Hello, <?= htmlspecialchars($full_name) ?> 👋</h2>
             <p>Welcome to your dashboard. Here is what's happening with your items today.</p>
         </div>
-        <div style="position: relative; z-index: 2;">
+        <div class="d-flex gap-2 flex-wrap align-items-center" style="position: relative; z-index: 2;">
             <span class="badge bg-light text-dark px-3 py-2 fs-6">
                 <i class="bi bi-shield-check text-primary"></i> <?= ucfirst($role) ?> Account
             </span>
+            <?php if ($user_badge): ?>
+                <span class="badge border px-3 py-2 fs-6 shadow-sm" style="background: <?= $user_badge['bg'] ?>; color: <?= $user_badge['text'] ?>; border-color: <?= $user_badge['border'] ?> !important;">
+                    <i class="bi <?= $user_badge['icon'] ?> me-1"></i> <?= $user_badge['label'] ?> (<?= $return_count ?> Returns)
+                </span>
+            <?php endif; ?>
         </div>
     </div>
 
-    <!-- Office Status Alert -->
     <div class="alert alert-<?= $status_color ?> d-flex align-items-center shadow-sm mb-4" style="border-left: 5px solid currentColor; border-radius: 12px;">
         <i class="bi bi-<?= $status_icon ?> fs-3 me-3"></i>
         <div>
             <h6 class="fw-bold mb-1">Lost & Found Office: <?= $status_text ?></h6>
             <p class="mb-0 small">
                 Hours: <?= date('g:i A', strtotime($office['opening_time'])) ?> - <?= date('g:i A', strtotime($office['closing_time'])) ?>. 
-                <?php if ($office['status'] === 'available'): ?>
-                    You can visit the office now.
-                <?php elseif ($office['status'] === 'lunch'): ?>
-                    The attendant is currently on a lunch break.
-                <?php else: ?>
-                    The office is currently closed.
-                <?php endif; ?>
+                <?php if ($office['status'] === 'available'): ?> You can visit the office now. 
+                <?php elseif ($office['status'] === 'lunch'): ?> The attendant is currently on a lunch break. 
+                <?php else: ?> The office is currently closed. <?php endif; ?>
             </p>
         </div>
     </div>
 
-    <!-- Stats Row -->
     <div class="row g-4 mb-5">
         <div class="col-md-4">
             <div class="stat-card-pro" style="background: linear-gradient(135deg, #1E40AF, #3B82F6);">
                 <div class="icon-box"><i class="bi bi-box-seam"></i></div>
-                <div>
-                    <h6>Total Items</h6>
-                    <h3><?= $total_items ?></h3>
-                </div>
+                <div><h6>Total Items</h6><h3><?= $total_items ?></h3></div>
             </div>
         </div>
         <div class="col-md-4">
-            <!-- FIXED COLOR HERE -->
             <div class="stat-card-pro" style="background: linear-gradient(135deg, #0F172A, #1E3A8A);">
                 <div class="icon-box"><i class="bi bi-file-earmark-text"></i></div>
-                <div>
-                    <h6>My Reports</h6>
-                    <h3><?= $my_items ?></h3>
-                </div>
+                <div><h6>My Reports</h6><h3><?= $my_items ?></h3></div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="stat-card-pro" style="background: linear-gradient(135deg, #0EA5E9, #0284C7);">
                 <div class="icon-box"><i class="bi bi-clipboard-check"></i></div>
-                <div>
-                    <h6>My Claims</h6>
-                    <h3><?= $my_claims ?></h3>
-                </div>
+                <div><h6>My Claims</h6><h3><?= $my_claims ?></h3></div>
             </div>
         </div>
     </div>
 
     <div class="row g-4">
-        <!-- Quick Actions -->
         <div class="col-md-7">
             <h4 class="fw-bold mb-3">Quick Actions</h4>
             <div class="row g-3">
@@ -210,13 +170,8 @@ require_once '../includes/navbar.php';
                         <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #EF4444;">
                             <div class="card-body">
                                 <div class="d-flex align-items-center gap-3">
-                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #FEE2E2; color: #EF4444; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-                                        <i class="bi bi-exclamation-circle"></i>
-                                    </div>
-                                    <div>
-                                        <h5 class="fw-bold mb-0 text-dark">Report Lost Item</h5>
-                                        <p class="text-muted small mb-0">Lost something? Start here.</p>
-                                    </div>
+                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #FEE2E2; color: #EF4444; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;"><i class="bi bi-exclamation-circle"></i></div>
+                                    <div><h5 class="fw-bold mb-0 text-dark">Report Lost Item</h5><p class="text-muted small mb-0">Lost something? Start here.</p></div>
                                 </div>
                             </div>
                         </div>
@@ -227,13 +182,8 @@ require_once '../includes/navbar.php';
                         <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #3B82F6;">
                             <div class="card-body">
                                 <div class="d-flex align-items-center gap-3">
-                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #DBEAFE; color: #3B82F6; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-                                        <i class="bi bi-search"></i>
-                                    </div>
-                                    <div>
-                                        <h5 class="fw-bold mb-0 text-dark">Browse & Claim</h5>
-                                        <p class="text-muted small mb-0">Search found items.</p>
-                                    </div>
+                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #DBEAFE; color: #3B82F6; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;"><i class="bi bi-search"></i></div>
+                                    <div><h5 class="fw-bold mb-0 text-dark">Browse & Claim</h5><p class="text-muted small mb-0">Search found items.</p></div>
                                 </div>
                             </div>
                         </div>
@@ -244,13 +194,8 @@ require_once '../includes/navbar.php';
                         <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #10B981;">
                             <div class="card-body">
                                 <div class="d-flex align-items-center gap-3">
-                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #D1FAE5; color: #10B981; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-                                        <i class="bi bi-tags"></i>
-                                    </div>
-                                    <div>
-                                        <h5 class="fw-bold mb-0 text-dark">My Claims</h5>
-                                        <p class="text-muted small mb-0">Track claim status.</p>
-                                    </div>
+                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #D1FAE5; color: #10B981; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;"><i class="bi bi-tags"></i></div>
+                                    <div><h5 class="fw-bold mb-0 text-dark">My Claims</h5><p class="text-muted small mb-0">Track claim status.</p></div>
                                 </div>
                             </div>
                         </div>
@@ -261,13 +206,8 @@ require_once '../includes/navbar.php';
                         <div class="card h-100 border-0 shadow-sm" style="border-left: 4px solid #F59E0B;">
                             <div class="card-body">
                                 <div class="d-flex align-items-center gap-3">
-                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #FEF3C7; color: #F59E0B; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-                                        <i class="bi bi-map"></i>
-                                    </div>
-                                    <div>
-                                        <h5 class="fw-bold mb-0 text-dark">Campus Map</h5>
-                                        <p class="text-muted small mb-0">View hotspots.</p>
-                                    </div>
+                                    <div style="width: 45px; height: 45px; border-radius: 10px; background: #FEF3C7; color: #F59E0B; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;"><i class="bi bi-map"></i></div>
+                                    <div><h5 class="fw-bold mb-0 text-dark">Campus Map</h5><p class="text-muted small mb-0">View hotspots.</p></div>
                                 </div>
                             </div>
                         </div>
@@ -276,7 +216,6 @@ require_once '../includes/navbar.php';
             </div>
         </div>
 
-        <!-- Recent Activity -->
         <div class="col-md-5">
             <h4 class="fw-bold mb-3">Recent Activity</h4>
             <div class="card border-0 shadow-sm">
@@ -295,18 +234,12 @@ require_once '../includes/navbar.php';
                                 elseif ($item['type'] === 'found') { $icon_color = '#3B82F6'; $icon_bg = '#DBEAFE'; $icon_class = 'search'; }
                             ?>
                             <div class="activity-item">
-                                <div class="activity-icon" style="background: <?= $icon_bg ?>; color: <?= $icon_color ?>;">
-                                    <i class="bi bi-<?= $icon_class ?>"></i>
-                                </div>
+                                <div class="activity-icon" style="background: <?= $icon_bg ?>; color: <?= $icon_color ?>;"><i class="bi bi-<?= $icon_class ?>"></i></div>
                                 <div class="flex-grow-1">
                                     <h6 class="mb-0 fw-bold"><?= htmlspecialchars($item['item_name']) ?></h6>
-                                    <small class="text-muted">
-                                        <?= date('M d, g:i A', strtotime($item['created_at'])) ?>
-                                    </small>
+                                    <small class="text-muted"><?= date('M d, g:i A', strtotime($item['created_at'])) ?></small>
                                 </div>
-                                <span class="badge bg-<?= $item['status'] === 'returned' ? 'success' : ($item['type'] === 'lost' ? 'danger' : 'primary') ?>">
-                                    <?= ucfirst($item['status']) ?>
-                                </span>
+                                <span class="badge bg-<?= $item['status'] === 'returned' ? 'success' : ($item['type'] === 'lost' ? 'danger' : 'primary') ?>"><?= ucfirst($item['status']) ?></span>
                             </div>
                         <?php endwhile; ?>
                     <?php endif; ?>
@@ -319,20 +252,9 @@ require_once '../includes/navbar.php';
 <!-- CHATBOT WIDGET -->
 <div class="chat-widget">
     <div class="chat-window" id="chatWindow">
-        <div class="chat-header">
-            <i class="bi bi-robot fs-4"></i>
-            <div>
-                <div class="fw-bold" style="font-size: 0.95rem;">L&F Assistant</div>
-                <div style="font-size: 0.75rem; opacity: 0.8;">Online</div>
-            </div>
-            <i class="bi bi-x-lg ms-auto" style="cursor: pointer;" onclick="toggleChat()"></i>
-        </div>
+        <div class="chat-header"><i class="bi bi-robot fs-4"></i><div><div class="fw-bold" style="font-size: 0.95rem;">L&F Assistant</div><div style="font-size: 0.75rem; opacity: 0.8;">Online</div></div><i class="bi bi-x-lg ms-auto" style="cursor: pointer;" onclick="toggleChat()"></i></div>
         <div class="chat-body" id="chatBody">
-            <div class="chat-message">
-                Hey <strong><?= htmlspecialchars(explode(' ', $full_name)[0]) ?></strong>! 👋<br>
-                How can I help you today?
-            </div>
-            
+            <div class="chat-message">Hey <strong><?= htmlspecialchars(explode(' ', $full_name)[0]) ?></strong>! 👋<br>How can I help you today?</div>
             <div class="chat-options" id="mainOptions">
                 <button class="chat-option" onclick="botShowStats()"><i class="bi bi-bar-chart"></i> Check System Stats</button>
                 <button class="chat-option" onclick="window.location.href='report_item.php'"><i class="bi bi-plus-circle"></i> Report a Lost Item</button>
@@ -341,50 +263,20 @@ require_once '../includes/navbar.php';
             </div>
         </div>
     </div>
-    <div class="chat-button" onclick="toggleChat()">
-        <i class="bi bi-robot"></i>
-    </div>
+    <div class="chat-button" onclick="toggleChat()"><i class="bi bi-robot"></i></div>
 </div>
 
 <script>
-    function toggleChat() {
-        const win = document.getElementById('chatWindow');
-        win.classList.toggle('open');
-    }
-
+    function toggleChat() { const win = document.getElementById('chatWindow'); win.classList.toggle('open'); }
     function botShowStats() {
-        const chatBody = document.getElementById('chatBody');
-        document.getElementById('mainOptions').style.display = 'none';
-
-        const userMsg = document.createElement('div');
-        userMsg.className = 'chat-message';
-        userMsg.style.background = '#DBEAFE';
-        userMsg.style.borderColor = '#93C5FD';
-        userMsg.style.marginLeft = '30px';
-        userMsg.style.borderBottomRightRadius = '2px';
-        userMsg.style.borderBottomLeftRadius = '12px';
-        userMsg.innerHTML = 'Check System Stats';
-        chatBody.appendChild(userMsg);
-
+        const chatBody = document.getElementById('chatBody'); document.getElementById('mainOptions').style.display = 'none';
+        const userMsg = document.createElement('div'); userMsg.className = 'chat-message'; userMsg.style.background = '#DBEAFE'; userMsg.style.borderColor = '#93C5FD'; userMsg.style.marginLeft = '30px'; userMsg.style.borderBottomRightRadius = '2px'; userMsg.style.borderBottomLeftRadius = '12px'; userMsg.innerHTML = 'Check System Stats'; chatBody.appendChild(userMsg);
         setTimeout(() => {
-            const botMsg = document.createElement('div');
-            botMsg.className = 'chat-message';
-            botMsg.innerHTML = `
-                Here are the live stats! 📊<br><br>
-                📦 <strong>Total Items:</strong> <?= $total_items ?><br>
-                ✅ <strong>Recovered:</strong> <?= $returned_items ?><br>
-                📈 <strong>Recovery Rate:</strong> <?= $recovery_rate ?>%<br><br>
-                You can check the <a href="campus_map.php" style="color:#1E40AF; font-weight:bold;">Campus Map</a> to see where most items are lost.
-            `;
+            const botMsg = document.createElement('div'); botMsg.className = 'chat-message';
+            botMsg.innerHTML = `Here are the live stats! 📊<br><br>📦 <strong>Total Items:</strong> <?= $total_items ?><br>✅ <strong>Recovered:</strong> <?= $returned_items ?><br>📈 <strong>Recovery Rate:</strong> <?= $recovery_rate ?>%<br><br>You can check the <a href="campus_map.php" style="color:#1E40AF; font-weight:bold;">Campus Map</a> to see where most items are lost.`;
             chatBody.appendChild(botMsg);
-            
-            const resetDiv = document.createElement('div');
-            resetDiv.className = 'chat-options';
-            resetDiv.innerHTML = `<button class="chat-option" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i> Back to Menu</button>`;
-            chatBody.appendChild(resetDiv);
-            chatBody.scrollTop = chatBody.scrollHeight;
-        }, 600);
-        chatBody.scrollTop = chatBody.scrollHeight;
+            const resetDiv = document.createElement('div'); resetDiv.className = 'chat-options'; resetDiv.innerHTML = `<button class="chat-option" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i> Back to Menu</button>`; chatBody.appendChild(resetDiv); chatBody.scrollTop = chatBody.scrollHeight;
+        }, 600); chatBody.scrollTop = chatBody.scrollHeight;
     }
 </script>
 

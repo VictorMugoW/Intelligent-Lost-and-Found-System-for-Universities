@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../config/database.php';
+require_once '../config/mailer.php'; // Added mailer
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header('Location: ../auth/login.php');
@@ -16,11 +17,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['item_id'], $_POST['ac
     $action = $_POST['action'];
 
     if ($action === 'verify') {
+        // 1. Fetch item and owner details for email
+        $stmt = $conn->prepare("SELECT i.item_name, u.email, u.full_name FROM items i JOIN users u ON i.user_id = u.user_id WHERE i.item_id = ?");
+        $stmt->bind_param("i", $item_id);
+        $stmt->execute();
+        $item_data = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        // 2. Update status
         $stmt = $conn->prepare("UPDATE items SET status = 'found', verified_by = ?, verified_at = NOW() WHERE item_id = ? AND status = 'pending_verification'");
         $stmt->bind_param("ii", $admin_id, $item_id);
         $stmt->execute();
         $stmt->close();
-        $message = "Item verified and published. It is now visible in the Found tab.";
+
+        // 3. Send Email to Owner
+        if ($item_data) {
+            $to = $item_data['email'];
+            $subject = "Good News! Your lost item has been found";
+            $body = "Hello " . $item_data['full_name'] . ",\n\nGreat news! Your lost item (" . $item_data['item_name'] . ") has been found and is currently at the Lost & Found Office.\n\nPlease log in to the system, go to 'My Lost Reports', and submit a claim to get your QR code for collection.\n\nThank you!";
+            sendEmail($to, $subject, $body);
+        }
+
+        $message = "Item verified and published. It is now visible in the Found tab. An email has been sent to the owner.";
         $message_type = "success";
     } elseif ($action === 'reject') {
         $reason = trim($_POST['reject_reason'] ?? '');
